@@ -237,54 +237,7 @@ class _KasirHomeState extends State<KasirHome> {
   }
 
   
-  Widget transactionPage() {
-    return FutureBuilder<List<Map<String, Object?>>>(
-      future: KasirDB.instance.db.query(
-        'transactions',
-        orderBy: 'time DESC',
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Text('Gagal membaca transaksi: ${snapshot.error}'),
-          );
-        }
-
-        final rows = snapshot.data ?? [];
-
-        if (rows.isEmpty) {
-          return const Center(
-            child: Text('Belum ada transaksi tersimpan'),
-          );
-        }
-
-        return ListView.builder(
-          itemCount: rows.length,
-          itemBuilder: (context, index) {
-            final row = rows[index];
-
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.receipt_long),
-                title: Text(money(row['total'] as int)),
-                subtitle: Text(
-                  '${row['time']}\n'
-                  'Cabang: ${row['branch']} • '
-                  'Pembayaran: ${row['payment']}',
-                ),
-                isThreeLine: true,
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
+  
   @override
   Widget build(BuildContext context) {
     final pages = [
