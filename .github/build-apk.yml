@@ -1,0 +1,44 @@
+
+name: Build Rumah Stationery Kasir APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Siapkan Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Siapkan Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Buat platform Android
+        run: flutter create --platforms=android .
+
+      - name: Unduh dependensi
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Simpan APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rumah-stationery-kasir-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
