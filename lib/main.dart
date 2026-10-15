@@ -238,56 +238,61 @@ class _KasirHomeState extends State<KasirHome> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      cashierPage(),
-      productPage(),
-      
-FutureBuilder<List<Map<String, Object?>>>(
-  future: KasirDB.instance.db.query(
-    'transactions',
-    orderBy: 'time DESC',
-  ),
-  builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    
+final pages = [
 
-    if (snapshot.hasError) {
-      return Center(
-        child: Text('Gagal membaca transaksi: ${snapshot.error}'),
-      );
-    }
+Widget transactionPage() {
+  return FutureBuilder<List<Map<String, Object?>>>(
+    future: KasirDB.instance.db.query(
+      'transactions',
+      orderBy: 'time DESC',
+    ),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
 
-    final rows = snapshot.data ?? [];
-
-    if (rows.isEmpty) {
-      return const Center(
-        child: Text('Belum ada transaksi tersimpan'),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: rows.length,
-      itemBuilder: (context, index) {
-        final row = rows[index];
-        return Card(
-          child: ListTile(
-            leading: const Icon(Icons.receipt_long),
-            title: Text('Rp ${row['total'] ?? 0}'),
-            subtitle: Text(
-              '${row['time'] ?? '-'}\n'
-              'Pembayaran: ${row['payment'] ?? '-'} • '
-              'Status: ${row['sync_status'] ?? 'pending'}',
-            ),
-            isThreeLine: true,
-          ),
+      if (snapshot.hasError) {
+        return Center(
+          child: Text('Gagal membaca transaksi: ${snapshot.error}'),
         );
-      },
-    );
-  },
-)
-,
-    ];
+      }
+
+      final rows = snapshot.data ?? [];
+
+      if (rows.isEmpty) {
+        return const Center(
+          child: Text('Belum ada transaksi tersimpan'),
+        );
+      }
+
+      return ListView.builder(
+        itemCount: rows.length,
+        itemBuilder: (context, index) {
+          final row = rows[index];
+
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.receipt_long),
+              title: Text(money(row['total'] as int)),
+              subtitle: Text(
+                '${row['time']}\n'
+                'Cabang: ${row['branch']} • '
+                'Pembayaran: ${row['payment']}',
+              ),
+              isThreeLine: true,
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+  cashierPage(),
+  productPage(),
+  transactionPage(),
+];
 
     return Scaffold(
       appBar: AppBar(
