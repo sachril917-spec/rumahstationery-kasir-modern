@@ -9,10 +9,13 @@ await KasirDB.instance.init();
 runApp(const RumahStationeryApp());
 }
 
+
 class KasirDB {
-KasirDB.();
-static final instance = KasirDB.();
-late Database db;
+  KasirDB._();
+
+  static final instance = KasirDB._();
+  late Database db;
+
 
 Future<void> init() async {
 db = await openDatabase(
