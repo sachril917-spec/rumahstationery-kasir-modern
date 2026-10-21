@@ -342,8 +342,16 @@ class _KasirHomeState extends State<KasirHome> {
       catch (_) { notify('Gagal menyimpan. Pastikan kode member belum dipakai'); }
     }, child: const Text('Simpan member')),
     const Divider(height: 28),
-    ...members.map((m) => ListTile(leading: const Icon(Icons.person), title: Text('${m['name']}'), subtitle: Text('${m['code']} • ${m['phone']} • ${m['price_level']} • diskon ${m['discount_percent']}%')),
+    
+    ...members.map((m) => ListTile(
+      leading: const Icon(Icons.person),
+      title: Text('${m['name']}'),
+      subtitle: Text(
+        "${m['code']} • ${m['phone']} • ${m['price_level']} • diskon ${m['discount_percent']}%",
+      ),
+    )),
   ]);
+
 
   Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(future: KasirDB.instance.db.query('transactions', orderBy: 'time DESC'), builder: (context, snapshot) {
     if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
