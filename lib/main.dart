@@ -233,33 +233,118 @@ class _KasirHomeState extends State<KasirHome> {
     if (result != null) setState(() { item['qty'] = result['qty']; item['discount'] = result['discount']; });
   }
 
+  
   Future<void> chooseMember() async {
     final search = TextEditingController();
-    final selected = await showDialog<Map<String, Object?>>(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
-      final filtered = members.where((m) => '${m['name']} ${m['code']} ${m['phone']}'.toLowerCase().contains(search.text.toLowerCase())).toList();
-      return AlertDialog(title: const Text('Pilih member'), content: SizedBox(width: 360, height: 360, child: Column(children: [
-        TextField(controller: search, decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari kode/nama/telepon'), onChanged: (_) => setDialogState(() {})),
-        Expanded(child: ListView(children: [ListTile(title: const Text('Tanpa member'), onTap: () => Navigator.pop(context, <String, Object?>{})), ...filtered.map((m) => ListTile(title: Text('${m['name']}'), subtitle: Text('${m['code']} • ${m['phone']}'), onTap: () => Navigator.pop(context, m))]))),
-      ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))]);
-    }));
+
+    final selected = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = members.where((m) {
+              final text =
+                  '${m['name']} ${m['code']} ${m['phone']}'
+                      .toLowerCase();
+              return text.contains(search.text.toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Pilih member'),
+              content: SizedBox(
+                width: 360,
+                height: 360,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: search,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Cari kode/nama/telepon',
+                      ),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filtered.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return ListTile(
+                              title: const Text('Tanpa member'),
+                              onTap: () {
+                                Navigator.pop(
+                                  dialogContext,
+                                  <String, Object?>{},
+                                );
+                              },
+                            );
+                          }
+
+                          final m = filtered[index - 1];
+
+                          return ListTile(
+                            title: Text('${m['name']}'),
+                            subtitle: Text(
+                              "${m['code']} • ${m['phone']}",
+                            ),
+                            onTap: () {
+                              Navigator.pop(dialogContext, m);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Tutup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
     search.dispose();
-    if (selected != null) setState(() {
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
       memberCodeController.text = '${selected['code'] ?? ''}';
       memberNameController.text = '${selected['name'] ?? ''}';
-      for (final entry in cart.entries.toList()) {
+
+      for (final entry in cart.entries) {
         for (final product in products) {
           if (product['id'] == entry.key) {
-            entry.value['price'] = memberCodeController.text.isNotEmpty ? ((product['member_price'] as int?) ?? (product['price'] as int)) : (product['price'] as int);
+            final isMember =
+                memberCodeController.text.trim().isNotEmpty;
+
+            entry.value['price'] = isMember
+                ? ((product['member_price'] as int?) ??
+                    (product['price'] as int))
+                : (product['price'] as int);
             break;
           }
         }
       }
-      if (selected['discount_percent'] != null) {
-        final percent = (selected['discount_percent'] as num).toDouble();
-        transactionDiscountController.text = ((subtotal - itemDiscountTotal) * percent / 100).round().toString();
+
+      final discountValue = selected['discount_percent'];
+      if (discountValue != null) {
+        final percent = (discountValue as num).toDouble();
+        transactionDiscountController.text =
+            ((subtotal - itemDiscountTotal) * percent / 100)
+                .round()
+                .toString();
+      } else {
+        transactionDiscountController.text = '0';
       }
     });
   }
+
 
   @override
   Widget build(BuildContext context) {
