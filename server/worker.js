@@ -20,7 +20,7 @@ export default {
         success: true,
         app: "Rumah Stationery Kasir",
         server: "aktif",
-        database: env.DB ? "terhubung" : "belum dikonfigurasi",
+        database: env.DB_RUMAH_STATIONERY ? "terhubung" : "belum dikonfigurasi",
         sync: "belum diaktifkan"
       }, { headers: cors });
     }
