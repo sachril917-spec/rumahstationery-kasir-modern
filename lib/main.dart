@@ -533,7 +533,12 @@ class _KasirHomeState extends State<KasirHome> {
     const SizedBox(height: 12),
     FilledButton.icon(onPressed: () => notify('Pengaturan dipakai pada transaksi berikutnya'), icon: const Icon(Icons.save), label: const Text('Simpan pengaturan untuk sesi ini')),
     const Divider(height: 32),
-    const ListTile(leading: Icon(Icons.cloud_off), title: Text('Sinkronisasi server'), subtitle: Text('Belum aktif. Data saat ini disimpan di perangkat ini saja.')),
+    ListTile(
+  leading: const Icon(Icons.cloud_upload),
+  title: const Text('Sinkronisasi server'),
+  subtitle: const Text('Fungsi pengiriman sudah disiapkan; konfigurasi belum selesai.'),
+  trailing: const Icon(Icons.lock_outline),
+),
     const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Web admin'), subtitle: Text('Belum tersedia pada paket ini; tahap berikutnya perlu API server, login, dan dashboard web.')),
   ]);
 }
