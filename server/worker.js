@@ -22,18 +22,16 @@ export default {
         success: true,
         app: "Rumah Stationery Kasir",
         server: "aktif",
-        database: env.DB_RUMAH_STATIONERY ? "terhubung" : "belum dikonfigurasi",
-        sync: "aktif"
+        database: env.DB_RUMAH_STATIONERY ? "terhubung" : "belum dikonfigurasi"
       });
     }
 
     if (url.pathname === "/sync/transactions" && request.method === "POST") {
-      if (!env.DB_RUMAH_STATIONERY) {
-        return json({ success: false, message: "Database D1 belum terhubung." }, 503);
-      }
-
-      if (!env.API_KEY) {
-        return json({ success: false, message: "API_KEY belum dikonfigurasi." }, 503);
+      if (!env.DB_RUMAH_STATIONERY || !env.API_KEY) {
+        return json({
+          success: false,
+          message: "Database atau API_KEY belum dikonfigurasi."
+        }, 503);
       }
 
       if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
@@ -44,7 +42,7 @@ export default {
       try {
         body = await request.json();
       } catch {
-        return json({ success: false, message: "Format JSON tidak valid." }, 400);
+        return json({ success: false, message: "JSON tidak valid." }, 400);
       }
 
       const { device_id, branch_id, transactions } = body;
@@ -52,31 +50,28 @@ export default {
       if (
         typeof device_id !== "string" || !device_id.trim() ||
         typeof branch_id !== "string" || !branch_id.trim() ||
-        !Array.isArray(transactions) || transactions.length > 100
+        !Array.isArray(transactions) ||
+        transactions.length < 1 ||
+        transactions.length > 100
       ) {
-        return json({
-          success: false,
-          message: "device_id, branch_id, dan transactions wajib diisi. Maksimal 100 transaksi per kiriman."
-        }, 400);
+        return json({ success: false, message: "Data kiriman tidak valid." }, 400);
       }
 
       try {
         const db = env.DB_RUMAH_STATIONERY;
         const receivedAt = new Date().toISOString();
-        let synced = 0;
+        let inserted = 0;
 
         for (const tx of transactions) {
           if (
-            !tx || typeof tx.id !== "string" || !tx.id.trim() ||
-            typeof tx.created_at !== "string" || !tx.created_at.trim() ||
+            typeof tx.id !== "string" ||
+            typeof tx.created_at !== "string" ||
             typeof tx.payment !== "string" ||
-            !Number.isSafeInteger(tx.total) || tx.total < 0 ||
+            !Number.isSafeInteger(tx.total) ||
+            tx.total < 0 ||
             tx.payload === undefined
           ) {
-            return json({
-              success: false,
-              message: "Data transaksi tidak lengkap atau tidak valid."
-            }, 400);
+            return json({ success: false, message: "Data transaksi tidak valid." }, 400);
           }
 
           const payload = typeof tx.payload === "string"
@@ -85,39 +80,37 @@ export default {
 
           const result = await db.prepare(`
             INSERT OR IGNORE INTO transactions
-              (id, device_id, branch_id, created_at, payment, total, payload, received_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              (id, total, payment, change_amount, created_at,
+               branch_id, device_id, payload, received_at)
+            VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)
           `).bind(
             tx.id,
-            device_id,
-            branch_id,
-            tx.created_at,
-            tx.payment,
             tx.total,
+            0,
+            tx.created_at,
+            branch_id,
+            device_id,
             payload,
             receivedAt
           ).run();
 
-          synced += result.meta.changes || 0;
+          inserted += result.meta.changes || 0;
         }
 
         return json({
           success: true,
           received: transactions.length,
-          inserted: synced,
-          duplicates: transactions.length - synced
+          inserted: inserted,
+          duplicates: transactions.length - inserted
         });
-      } catch {
+      } catch (error) {
         return json({
           success: false,
-          message: "Gagal menyimpan transaksi ke database."
+          message: "Gagal menyimpan transaksi. Periksa struktur tabel D1."
         }, 500);
       }
     }
 
-    return json({
-      success: false,
-      message: "Endpoint tidak ditemukan."
-    }, 404);
+    return json({ success: false, message: "Endpoint tidak ditemukan." }, 404);
   }
 };
