@@ -37,7 +37,14 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "Secret API_KEY belum diatur"
+            exit 1
+          fi
+          flutter build apk --release --dart-define=API_KEY="$API_KEY"
 
       - name: Simpan APK
         uses: actions/upload-artifact@v4
