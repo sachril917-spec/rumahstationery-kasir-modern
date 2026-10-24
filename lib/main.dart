@@ -143,7 +143,7 @@ class KasirDB {
         'cashier': cashier, 'member_code': memberCode, 'member_name': memberName,
         'payment': payment, 'subtotal': subtotal, 'item_discount': itemDiscount,
         'transaction_discount': transactionDiscount, 'total': total,
-        'payload': items.toString(), 'sync_status': 'pending',
+        'payload': jsonEncode(items), 'sync_status': 'pending',
       });
     });
   }
