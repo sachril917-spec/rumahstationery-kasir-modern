@@ -536,8 +536,16 @@ class _KasirHomeState extends State<KasirHome> {
     ListTile(
   leading: const Icon(Icons.cloud_upload),
   title: const Text('Sinkronisasi server'),
-  subtitle: const Text('Fungsi pengiriman sudah disiapkan; konfigurasi belum selesai.'),
+  subtitle: const Text(
+    'Pengiriman transaksi belum dikonfigurasi.',
+  ),
   trailing: const Icon(Icons.lock_outline),
+  onTap: () {
+    notify(
+      'Sinkronisasi belum aktif. '
+      'Autentikasi perangkat perlu disiapkan terlebih dahulu.',
+    );
+  },
 ),
     const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Web admin'), subtitle: Text('Belum tersedia pada paket ini; tahap berikutnya perlu API server, login, dan dashboard web.')),
   ]);
