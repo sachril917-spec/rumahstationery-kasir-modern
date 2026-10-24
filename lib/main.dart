@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+const apiKey = String.fromEnvironment('API_KEY');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
