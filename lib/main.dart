@@ -144,12 +144,84 @@ class KasirDB {
         'payment': payment, 'subtotal': subtotal, 'item_discount': itemDiscount,
         'transaction_discount': transactionDiscount, 'total': total,
         'payload': jsonEncode(items), 'sync_status': 'pending',
+      
       });
     });
+  }
+
+  Future<int> syncPendingTransactions({
+    required String apiKey,
+  }) async {
+    final pending = await db.query(
+      'transactions',
+      where: 'sync_status = ?',
+      whereArgs: ['pending'],
+      orderBy: 'time ASC',
+      limit: 100,
+    );
+
+    if (pending.isEmpty) return 0;
+
+    final groups = <String, List<Map<String, Object?>>>{};
+
+    for (final row in pending) {
+      final branch = '${row['branch']}';
+      groups.putIfAbsent(branch, () => []).add(row);
+    }
+
+    var syncedCount = 0;
+
+    for (final entry in groups.entries) {
+      final transactions = entry.value.map((row) => {
+        'id': row['id'],
+        'created_at': row['time'],
+        'payment': row['payment'],
+        'total': row['total'],
+        'payload': row['payload'],
+      }).toList();
+
+      final response = await http.post(
+        Uri.parse(
+          'https://rumah-stationery-api.sachril917.workers.dev/sync/transactions',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+        body: jsonEncode({
+          'device_id': 'rumah-stationery-android',
+          'branch_id': entry.key,
+          'transactions': transactions,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        throw Exception('Sinkronisasi gagal: ${response.statusCode}');
+      }
+
+      final result = jsonDecode(response.body);
+
+      if (result['success'] != true) {
+        throw Exception(result['message'] ?? 'Sinkronisasi gagal');
+      }
+
+      for (final row in entry.value) {
+        await db.update(
+          'transactions',
+          {'sync_status': 'synced'},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        syncedCount++;
+      }
+    }
+
+    return syncedCount;
   }
 }
 
 class RumahStationeryApp extends StatelessWidget {
+
   const RumahStationeryApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
