@@ -534,20 +534,30 @@ class _KasirHomeState extends State<KasirHome> {
     const SizedBox(height: 12),
     FilledButton.icon(onPressed: () => notify('Pengaturan dipakai pada transaksi berikutnya'), icon: const Icon(Icons.save), label: const Text('Simpan pengaturan untuk sesi ini')),
     const Divider(height: 32),
-    ListTile(
+    
+ListTile(
   leading: const Icon(Icons.cloud_upload),
   title: const Text('Sinkronisasi server'),
-  subtitle: const Text(
-    'Pengiriman transaksi belum dikonfigurasi.',
-  ),
-  trailing: const Icon(Icons.lock_outline),
-  onTap: () {
-    notify(
-      'Sinkronisasi belum aktif. '
-      'Autentikasi perangkat perlu disiapkan terlebih dahulu.',
-    );
+  subtitle: const Text('Kirim transaksi pending ke server'),
+  onTap: () async {
+    if (apiKey.isEmpty) {
+      notify('API_KEY belum tersedia. Build ulang APK.');
+      return;
+    }
+
+    try {
+      final count = await KasirDB.instance
+          .syncPendingTransactions(apiKey: apiKey);
+
+      if (!mounted) return;
+      notify('Sinkronisasi berhasil: $count transaksi');
+    } catch (e) {
+      if (!mounted) return;
+      notify('Sinkronisasi gagal: $e');
+    }
   },
 ),
+
     const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Web admin'), subtitle: Text('Belum tersedia pada paket ini; tahap berikutnya perlu API server, login, dan dashboard web.')),
   ]);
 }
