@@ -64,12 +64,12 @@ export default {
 
         for (const tx of transactions) {
           if (
-            !(typeof tx.payment === "number" && Number.isFinite(tx.payment)) ||
-            typeof tx.created_at !== "string" ||
-            !Number.isSafeInteger(tx.total) ||
-            tx.total < 0 ||
-            tx.payload === undefined
-          ) {
+  !(typeof tx.payment === "number" && Number.isFinite(tx.payment)) ||
+  typeof tx.created_at !== "string" ||
+  !Number.isSafeInteger(tx.total) ||
+  tx.total < 0 ||
+  tx.payload === undefined
+) {
             return json({ success: false, message: "Data transaksi tidak valid." }, 400);
           }
 
