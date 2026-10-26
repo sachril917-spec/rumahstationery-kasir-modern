@@ -501,6 +501,28 @@ int get changeAmount =>
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Diskon barang'), Text(money(itemDiscountTotal))]),
       TextField(controller: transactionDiscountController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Diskon total transaksi (Rp)'), onChanged: (_) => setState(() {})),
       DropdownButton<String>(value: payment, items: ['Tunai', 'Transfer', 'QRIS'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setState(() => payment = v ?? 'Tunai')),
+if (payment == 'Tunai') ...[
+  TextField(
+    controller: cashReceivedController,
+    keyboardType: TextInputType.number,
+    decoration: InputDecoration(
+      labelText: 'Uang diterima',
+      hintText: 'Masukkan nominal uang pelanggan',
+      prefixText: 'Rp ',
+    ),
+    onChanged: (_) => setState(() {}),
+  ),
+  Align(
+    alignment: Alignment.centerRight,
+    child: Text(
+      'Kembalian: ${money(changeAmount)}',
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      ),
+    ),
+  ),
+],
       SizedBox(width: double.infinity, child: FilledButton(onPressed: () async {
         if (cart.isEmpty) { notify('Keranjang masih kosong'); return; }
         if (transactionDiscount < 0 || transactionDiscount > subtotal - itemDiscountTotal) { notify('Diskon total tidak boleh melebihi subtotal setelah diskon barang'); return; }
