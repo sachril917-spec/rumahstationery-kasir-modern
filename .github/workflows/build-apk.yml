@@ -33,6 +33,12 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
+      - name: Pasang Android NDK
+        run: |
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" "ndk;28.2.13676358"
+
       - name: Pastikan izin internet Android tersedia
         run: |
           python3 - <<'PY'
@@ -48,7 +54,6 @@ jobs:
 
           print("Izin internet Android sudah diperiksa")
           PY
-
 
       - name: Unduh dependensi
         run: flutter pub get
