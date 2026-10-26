@@ -64,7 +64,7 @@ export default {
 
         for (const tx of transactions) {
           if (
-            typeof tx.id !== "string" ||
+            !(typeof tx.payment === "number" && Number.isFinite(tx.payment)) ||
             typeof tx.created_at !== "string" ||
             typeof tx.payment !== "string" ||
             !Number.isSafeInteger(tx.total) ||
