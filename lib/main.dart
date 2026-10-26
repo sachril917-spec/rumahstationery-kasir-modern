@@ -21,7 +21,7 @@ class KasirDB {
   Future<void> init() async {
     db = await openDatabase(
       p.join(await getDatabasesPath(), 'rumah_stationery.db'),
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE products(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -66,6 +66,14 @@ class KasirDB {
           await db.execute('ALTER TABLE products ADD COLUMN member_price INTEGER NOT NULL DEFAULT 0');
           await db.execute('UPDATE products SET middle_price = price, middle_qty = 1, member_price = price WHERE middle_price = 0');
         }
+if (oldVersion < 4) {
+  await db.execute(
+    'ALTER TABLE transactions ADD COLUMN amount_paid INTEGER NOT NULL DEFAULT 0',
+  );
+  await db.execute(
+    'ALTER TABLE transactions ADD COLUMN change_amount INTEGER NOT NULL DEFAULT 0',
+  );
+}
       },
     );
   }
