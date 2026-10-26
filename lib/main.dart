@@ -196,9 +196,13 @@ class KasirDB {
         }),
       ).timeout(const Duration(seconds: 20));
 
-      if (response.statusCode != 200) {
-        throw Exception('Sinkronisasi gagal: ${response.statusCode}');
-      }
+      
+if (response.statusCode != 200) {
+  throw Exception(
+    'Sinkronisasi gagal: ${response.statusCode} - ${response.body}',
+  );
+}
+
 
       final result = jsonDecode(response.body);
 
