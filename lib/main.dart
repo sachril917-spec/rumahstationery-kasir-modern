@@ -297,7 +297,18 @@ class _KasirHomeState extends State<KasirHome> {
   List<Map<String, Object?>> members = [];
   final Map<String, Map<String, dynamic>> cart = {};
   String payment = 'Tunai';
-  int page = 0;
+final cashReceivedController = TextEditingController();
+int page = 0;
+
+int get amountPaid =>
+    payment == 'Tunai'
+        ? (int.tryParse(cashReceivedController.text) ?? 0)
+        : total;
+
+int get changeAmount =>
+    payment == 'Tunai' && amountPaid >= total
+        ? amountPaid - total
+        : 0;
 
   int get subtotal => cart.values.fold(0, (sum, item) => sum + (item['price'] as int) * (item['qty'] as int));
   int get itemDiscountTotal => cart.values.fold(0, (sum, item) => sum + (item['discount'] as int));
