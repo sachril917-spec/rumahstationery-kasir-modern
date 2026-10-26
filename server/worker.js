@@ -66,7 +66,6 @@ export default {
           if (
             !(typeof tx.payment === "number" && Number.isFinite(tx.payment)) ||
             typeof tx.created_at !== "string" ||
-            typeof tx.payment !== "string" ||
             !Number.isSafeInteger(tx.total) ||
             tx.total < 0 ||
             tx.payload === undefined
