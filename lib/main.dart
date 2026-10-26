@@ -173,13 +173,34 @@ class KasirDB {
     var syncedCount = 0;
 
     for (final entry in groups.entries) {
-      final transactions = entry.value.map((row) => {
-        'id': row['id'],
-        'created_at': row['time'],
-        'payment': row['payment'],
-        'total': row['total'],
-        'payload': row['payload'],
-      }).toList();
+      final transactions = entry.value.map((row) {
+  final rawPayload = row['payload'];
+  dynamic payload = rawPayload;
+
+  if (rawPayload is String) {
+    try {
+      payload = jsonDecode(rawPayload);
+    } catch (_) {}
+  }
+
+  final rawPayment = row['payment'];
+  final payloadPayment =
+      payload is Map ? payload['payment'] : null;
+
+  final payment = rawPayment is num
+      ? rawPayment
+      : payloadPayment is num
+          ? payloadPayment
+          : null;
+
+  return {
+    'id': row['id'].toString(),
+    'created_at': row['time'].toString(),
+    'payment': payment,
+    'total': row['total'],
+    'payload': rawPayload,
+  };
+}).toList();
 
       final response = await http.post(
         Uri.parse(
