@@ -78,21 +78,24 @@ export default {
             ? tx.payload
             : JSON.stringify(tx.payload);
 
-          const result = await db.prepare(`
-            INSERT OR IGNORE INTO transactions
-              (id, total, payment, change_amount, created_at,
-               branch_id, device_id, payload, received_at)
-            VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)
-          `).bind(
-            tx.id,
-            tx.total,
-            0,
-            tx.created_at,
-            branch_id,
-            device_id,
-            payload,
-            receivedAt
-          ).run();
+          
+const result = await db.prepare(`
+  INSERT OR IGNORE INTO transactions
+  (id, total, payment, change_amount, created_at,
+   branch_id, device_id, payload, received_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).bind(
+  String(tx.id),
+  Number(tx.total) || 0,
+  Number(tx.payment) || 0,
+  Number(tx.change_amount) || 0,
+  tx.created_at,
+  branch_id,
+  device_id,
+  payload,
+  receivedAt
+).run();
+
 
           inserted += result.meta.changes || 0;
         }
