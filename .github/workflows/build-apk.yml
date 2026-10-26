@@ -33,6 +33,23 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
+      - name: Pastikan izin internet Android tersedia
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text(encoding="utf-8")
+          izin = '<uses-permission android:name="android.permission.INTERNET"/>'
+
+          if "android.permission.INTERNET" not in s:
+              s = s.replace("<application", f"    {izin}\n    <application", 1)
+              p.write_text(s, encoding="utf-8")
+
+          print("Izin internet Android sudah diperiksa")
+          PY
+
+
       - name: Unduh dependensi
         run: flutter pub get
 
