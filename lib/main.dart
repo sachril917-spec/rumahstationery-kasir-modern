@@ -184,14 +184,18 @@ class KasirDB {
   }
 
   final rawPayment = row['payment'];
-  final payloadPayment =
-      payload is Map ? payload['payment'] : null;
+final payloadPayment =
+    payload is Map ? payload['payment'] : null;
 
-  final payment = rawPayment is num
-      ? rawPayment
-      : payloadPayment is num
-          ? payloadPayment
-          : null;
+final paymentValue = rawPayment is num
+    ? rawPayment
+    : num.tryParse(rawPayment?.toString() ?? '');
+
+final payloadPaymentValue = payloadPayment is num
+    ? payloadPayment
+    : num.tryParse(payloadPayment?.toString() ?? '');
+
+final payment = paymentValue ?? payloadPaymentValue ?? 0;
 
   return {
     'id': row['id'].toString(),
