@@ -240,11 +240,45 @@ class _HomeState extends State<Home> {
     },child:const Text('Simpan member')),
     ...ms.map((m)=>ListTile(title:Text('${m['name']}'),subtitle:Text("${m['code']} • ${m['phone']} • ${m['price_level']} • ${m['discount_percent']}%")))
   ]);
-  Widget transactionPage()=>FutureBuilder<List<Map<String,Object?>>>(future:KasirDB.instance.db.query('transactions',orderBy:'time DESC'),builder:(c,s){
-    if(s.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator());final rows=s.data??[];
-    if(rows.isEmpty)return const Center(child:Text('Belum ada transaksi'));
-    return ListView(children:rows.map((r)=>ListTile(title:Text('${r['invoice_no']}'),subtitle:Text("${r['branch']} • ${r['cashier']} • ${r['payment']}\\nDibayar ${money((r['amount_paid'] as int?)??0)} • Kembalian ${money((r['change_amount'] as int?)??0)}"),trailing:Text(money(r['total'] as int))).toList());
-  });
+  
+Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
+  future: KasirDB.instance.db.query(
+    'transactions',
+    orderBy: 'time DESC',
+  ),
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (snapshot.hasError) {
+      return Center(
+        child: Text('Gagal membaca transaksi: ${snapshot.error}'),
+      );
+    }
+
+    final rows = snapshot.data ?? <Map<String, Object?>>[];
+
+    if (rows.isEmpty) {
+      return const Center(child: Text('Belum ada transaksi'));
+    }
+
+    return ListView(
+      children: rows.map<Widget>((r) {
+        return ListTile(
+          title: Text('${r['invoice_no']}'),
+          subtitle: Text(
+            "${r['branch']} • ${r['cashier']} • ${r['payment']}\n"
+            "Dibayar ${money((r['amount_paid'] as int?) ?? 0)}"
+            " • Kembalian ${money((r['change_amount'] as int?) ?? 0)}",
+          ),
+          trailing: Text(money((r['total'] as int?) ?? 0)),
+        );
+      }).toList(),
+    );
+  },
+);
+
   Widget adminPage()=>ListView(padding:const EdgeInsets.all(16),children:[
     const Text('Pengaturan admin',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
     TextField(controller:branch,decoration:const InputDecoration(labelText:'Nama cabang')),
