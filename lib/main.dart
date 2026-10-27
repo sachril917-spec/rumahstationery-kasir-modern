@@ -10,11 +10,19 @@ import 'package:uuid/uuid.dart';
 const apiKey = String.fromEnvironment('API_KEY');
 const apiUrl = 'https://rumah-stationery-api.sachril917.workers.dev';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isWindows) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
   await KasirDB.instance.init();
   runApp(const RumahStationeryApp());
 }
+
 
 class KasirDB {
   KasirDB._();
