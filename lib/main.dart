@@ -113,6 +113,7 @@ class KasirDB {
     required String memberName}) async {
     if (method=='Tunai' && paid<total) throw Exception('Uang diterima kurang dari total');
     final change=method=='Tunai' ? paid-total : 0;
+        final invoiceNo = await invoice();
     await db.transaction((t) async {
       for (final i in items) {
         final r=await t.query('products',where:'id=?',whereArgs:[i['id']]);
