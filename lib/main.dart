@@ -121,7 +121,7 @@ class KasirDB {
         if(stock<qty) throw Exception('Stok ${i['name']} tidak cukup');
         await t.update('products',{'stock':stock-qty},where:'id=?',whereArgs:[i['id']]);
       }
-      await t.insert('transactions', {'id':uuid.v4(),'invoice_no':await invoice(),'time':DateTime.now().toIso8601String(),
+      await t.insert('transactions', {'id':uuid.v4(),'invoice_no':invoiceNo,'time':DateTime.now().toIso8601String(),
         'branch':branch,'cashier':cashier,'member_code':memberCode,'member_name':memberName,'payment':method,
         'amount_paid':paid,'change_amount':change,'subtotal':subtotal,'item_discount':itemDiscount,
         'transaction_discount':txnDiscount,'total':total,'payload':jsonEncode(items),'sync_status':'pending'});
