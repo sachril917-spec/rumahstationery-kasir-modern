@@ -34,7 +34,7 @@ jobs:
         run: flutter pub get
 
       - name: Build aplikasi Windows
-  run: flutter build windows --release --dart-define=API_KEY=${{ secrets.API_KEY }}
+        run: flutter build windows --release --dart-define=API_KEY=${{ secrets.API_KEY }}
 
       - name: Paketkan aplikasi
         shell: pwsh
