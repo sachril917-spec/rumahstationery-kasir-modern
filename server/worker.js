@@ -44,7 +44,25 @@ export default {
         }, 500);
       }
     }
-
+    if (url.pathname === "/updates" && request.method === "GET") {
+      return json({
+        success: true,
+        app: "Rumah Stationery Kasir",
+        android: {
+          version: env.UPDATE_ANDROID_VERSION || "",
+          url: env.UPDATE_ANDROID_URL || "",
+          sha256: env.UPDATE_ANDROID_SHA256 || "",
+          notes: env.UPDATE_ANDROID_NOTES || ""
+        },
+        windows: {
+          version: env.UPDATE_WINDOWS_VERSION || "",
+          url: env.UPDATE_WINDOWS_URL || "",
+          sha256: env.UPDATE_WINDOWS_SHA256 || "",
+          notes: env.UPDATE_WINDOWS_NOTES || ""
+        }
+      });
+    }
+    
     if (
       url.pathname !== "/sync/transactions" ||
       request.method !== "POST"
