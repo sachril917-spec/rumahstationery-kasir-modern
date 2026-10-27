@@ -163,7 +163,7 @@ class Home extends StatefulWidget { const Home({super.key}); @override State<Hom
 class _HomeState extends State<Home> {
   final search=TextEditingController(),code=TextEditingController(),name=TextEditingController(),cost=TextEditingController(text:'0'),
     price=TextEditingController(),mid=TextEditingController(),qty=TextEditingController(text:'10'),stock=TextEditingController(),
-    cashier=TextEditingController(text:'Kasir 1'),branch=TextEditingController(text:'Rumah Stationery'),memberCode=TextEditingController(),
+    cashier=TextEditingController(text:'Kasir 1'),branch=TextEditingController(text:'PERCOBAAN APK BARU'),memberCode=TextEditingController(),
     memberName=TextEditingController(),phone=TextEditingController(),discount=TextEditingController(text:'0'),
     level=TextEditingController(text:'Retail'),txnDiscount=TextEditingController(text:'0'),cash=TextEditingController();
   List<Map<String,Object?>> ps=[],ms=[];
