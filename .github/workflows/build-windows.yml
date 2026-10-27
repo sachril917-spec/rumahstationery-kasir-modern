@@ -1,0 +1,52 @@
+
+name: Build Rumah Stationery Kasir Windows
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'windows/**'
+      - '.github/workflows/build-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Ambil source code
+        uses: actions/checkout@v4
+
+      - name: Siapkan Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Aktifkan platform Windows
+        run: flutter create --platforms=windows .
+
+      - name: Pasang dependensi
+        run: flutter pub get
+
+      - name: Build aplikasi Windows
+        run: flutter build windows --release
+
+      - name: Paketkan aplikasi
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "build/windows/x64/runner/Release/*" `
+            -DestinationPath "rumah-stationery-kasir-windows.zip" `
+            -Force
+
+      - name: Simpan hasil build
+        uses: actions/upload-artifact@v4
+        with:
+          name: rumah-stationery-kasir-windows
+          path: rumah-stationery-kasir-windows.zip
+          if-no-files-found: error
