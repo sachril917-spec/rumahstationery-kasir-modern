@@ -32,7 +32,54 @@ jobs:
 
       - name: Buat platform Android
         run: flutter create --platforms=android .
+      - name: Atur identitas APK percobaan
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
+          files = [
+              Path("android/app/build.gradle.kts"),
+              Path("android/app/build.gradle")
+          ]
+
+          found = False
+          for p in files:
+              if not p.exists():
+                  continue
+              s = p.read_text()
+              s, n = re.subn(
+                  r'applicationId\s*=\s*"[^"]+"',
+                  'applicationId = "com.adl.rumahstationery.kasirpercobaan"',
+                  s,
+                  count=1
+              )
+              if n == 0:
+                  s, n = re.subn(
+                      r'applicationId\s+"[^"]+"',
+                      'applicationId "com.adl.rumahstationery.kasirpercobaan"',
+                      s,
+                      count=1
+                  )
+              if n:
+                  p.write_text(s)
+                  found = True
+                  break
+
+          if not found:
+              raise SystemExit("applicationId tidak ditemukan")
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s = re.sub(
+              r'android:label="[^"]*"',
+              'android:label="Rumah Stationery Uji Coba"',
+              s,
+              count=1
+          )
+          p.write_text(s)
+          print("Identitas APK percobaan berhasil diatur")
+          PY
       - name: Pasang Android NDK
         run: |
           SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
