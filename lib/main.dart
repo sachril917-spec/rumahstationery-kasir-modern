@@ -310,8 +310,7 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
           }
         },
       ),
-    ]);
-}
+            ]);
 
 Future<void> cekUpdateAplikasi() async {
   try {
