@@ -301,3 +301,33 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
     })
   ]);
 }
+Future<void> cekUpdateAplikasi() async {
+  try {
+    final response = await http
+        .get(Uri.parse('$apiUrl/updates'))
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      throw Exception('Gagal memeriksa update');
+    }
+
+    final data = jsonDecode(response.body);
+    final platform = Platform.isWindows ? 'windows' : 'android';
+    final update = data[platform];
+
+    if (update == null || update['url'] == '') {
+      throw Exception('Link update belum tersedia');
+    }
+
+    final versiTerbaru = update['version'] ?? '';
+
+    if (versiTerbaru.isEmpty) {
+      throw Exception('Versi terbaru belum diatur');
+    }
+
+    print('Versi update tersedia: $versiTerbaru');
+    print('Link update: ${update['url']}');
+  } catch (e) {
+    print('Cek update gagal: $e');
+  }
+}
