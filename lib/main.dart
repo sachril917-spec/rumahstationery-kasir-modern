@@ -336,9 +336,22 @@ Future<void> cekUpdateAplikasi() async {
       throw Exception('Versi terbaru belum diatur');
     }
 
-    print('Versi update tersedia: $versiTerbaru');
-    print('Link update: ${update['url']}');
-  } catch (e) {
-    print('Cek update gagal: $e');
-  }
-}
+          final pesan =
+          'Versi update tersedia: $versiTerbaru\n'
+          'Link: ${update['url']}';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(pesan),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cek update gagal: $e')),
+        );
+      }
+    }
