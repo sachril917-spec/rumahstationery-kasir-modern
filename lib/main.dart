@@ -348,10 +348,11 @@ Future<void> cekUpdateAplikasi() async {
           ),
         );
       }
-    } catch (e) {
+        } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Cek update gagal: $e')),
         );
       }
     }
+  }
