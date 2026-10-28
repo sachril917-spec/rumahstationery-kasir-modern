@@ -312,6 +312,7 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
       ),
     ]);
 }
+
 Future<void> cekUpdateAplikasi() async {
   try {
     final response = await http
@@ -326,33 +327,40 @@ Future<void> cekUpdateAplikasi() async {
     final platform = Platform.isWindows ? 'windows' : 'android';
     final update = data[platform];
 
-    if (update == null || update['url'] == '') {
+    if (update == null || update['url'] == null ||
+        update['url'].toString().isEmpty) {
       throw Exception('Link update belum tersedia');
     }
 
-    final versiTerbaru = update['version'] ?? '';
+    final versiTerbaru = update['version']?.toString() ?? '';
 
     if (versiTerbaru.isEmpty) {
       throw Exception('Versi terbaru belum diatur');
     }
 
-          final pesan =
-          'Versi update tersedia: $versiTerbaru\n'
-          'Link: ${update['url']}';
+    final pesan =
+        'Versi update tersedia: $versiTerbaru\n'
+        'Link: ${update['url']}';
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(pesan),
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
-        } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Cek update gagal: $e')),
-        );
-      }
-    }
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(pesan),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: 'Buka',
+          onPressed: () {
+            launchUrl(Uri.parse(update['url'].toString()));
+          },
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Cek update gagal: $e')),
+    );
   }
+}
