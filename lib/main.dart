@@ -298,8 +298,19 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
     ListTile(leading:const Icon(Icons.cloud_upload),title:const Text('Sinkronisasi server'),subtitle:const Text('Kirim transaksi pending'),onTap:()async{
       if(apiKey.isEmpty){msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.');return;}
       try{final n=await KasirDB.instance.sync(apiKey);if(mounted)msg('Sinkronisasi berhasil: $n transaksi');}catch(e){if(mounted)msg('Sinkronisasi gagal: $e');}
-    })
-  ]);
+          }),
+      ListTile(
+        leading: const Icon(Icons.system_update),
+        title: const Text('Cek Update Aplikasi'),
+        subtitle: const Text('Periksa versi terbaru'),
+        onTap: () async {
+          await cekUpdateAplikasi();
+          if (mounted) {
+            msg('Pemeriksaan update selesai. Lihat log aplikasi.');
+          }
+        },
+      ),
+    ]);
 }
 Future<void> cekUpdateAplikasi() async {
   try {
