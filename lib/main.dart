@@ -291,15 +291,38 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
   },
 );
 
-  Widget adminPage()=>ListView(padding:const EdgeInsets.all(16),children:[
-    const Text('Pengaturan admin',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
-    TextField(controller:branch,decoration:const InputDecoration(labelText:'Nama cabang')),
-    TextField(controller:cashier,decoration:const InputDecoration(labelText:'Nama kasir')),
-    ListTile(leading:const Icon(Icons.cloud_upload),title:const Text('Sinkronisasi server'),subtitle:const Text('Kirim transaksi pending'),onTap:()async{
-      if(apiKey.isEmpty){msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.');return;}
-      try{final n=await KasirDB.instance.sync(apiKey);if(mounted)msg('Sinkronisasi berhasil: $n transaksi');}catch(e){if(mounted)msg('Sinkronisasi gagal: $e');}
-          }),
-      
-            ]);
-
- }.
+    Widget adminPage() => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      const Text(
+        'Pengaturan admin',
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      ),
+      TextField(
+        controller: branch,
+        decoration: const InputDecoration(labelText: 'Nama cabang'),
+      ),
+      TextField(
+        controller: cashier,
+        decoration: const InputDecoration(labelText: 'Nama kasir'),
+      ),
+      ListTile(
+        leading: const Icon(Icons.cloud_upload),
+        title: const Text('Sinkronisasi server'),
+        subtitle: const Text('Kirim transaksi pending'),
+        onTap: () async {
+          if (apiKey.isEmpty) {
+            msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.');
+            return;
+          }
+          try {
+            final n = await KasirDB.instance.sync(apiKey);
+            if (mounted) msg('Sinkronisasi berhasil: $n transaksi');
+          } catch (e) {
+            if (mounted) msg('Sinkronisasi gagal: $e');
+          }
+        },
+      ),
+    ],
+  );
+}
