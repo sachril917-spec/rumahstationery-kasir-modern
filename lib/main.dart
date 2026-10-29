@@ -294,9 +294,17 @@ FilledButton(
     }
 
     try {
-      await KasirDB.instance.addProduct(
-        code.text, name.text, c, pr, m, q, s,
-      );
+      if (editingProductId != null) {
+  await KasirDB.instance.updateProduct(
+    editingProductId!,
+    code.text, name.text, c, pr, m, q, s,
+  );
+  editingProductId = null;
+} else {
+  await KasirDB.instance.addProduct(
+    code.text, name.text, c, pr, m, q, s,
+  );
+}
 
       code.clear();
       name.clear();
