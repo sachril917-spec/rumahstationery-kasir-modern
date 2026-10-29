@@ -291,38 +291,99 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
   },
 );
 
-    Widget adminPage() => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
-      const Text(
-        'Pengaturan admin',
-        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-      ),
-      TextField(
-        controller: branch,
-        decoration: const InputDecoration(labelText: 'Nama cabang'),
-      ),
-      TextField(
-        controller: cashier,
-        decoration: const InputDecoration(labelText: 'Nama kasir'),
-      ),
-      ListTile(
-        leading: const Icon(Icons.cloud_upload),
-        title: const Text('Sinkronisasi server'),
-        subtitle: const Text('Kirim transaksi pending'),
-        onTap: () async {
-          if (apiKey.isEmpty) {
-            msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.');
+    
+Widget adminPage() => ListView(
+  padding: const EdgeInsets.all(16),
+  children: [
+    const Text(
+      'Pengaturan admin',
+      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    ),
+    TextField(
+      controller: branch,
+      decoration: const InputDecoration(labelText: 'Nama cabang'),
+    ),
+    TextField(
+      controller: cashier,
+      decoration: const InputDecoration(labelText: 'Nama kasir'),
+    ),
+    const SizedBox(height: 16),
+
+    FilledButton.icon(
+      icon: const Icon(Icons.system_update),
+      label: const Text('Cek Update Aplikasi'),
+      onPressed: () async {
+        try {
+          final response = await http.get(
+            Uri.parse(
+              'https://api.github.com/repos/'
+              'sachril917-spec/rumahstationery-kasir-modern/releases/latest',
+            ),
+            headers: {'Accept': 'application/vnd.github+json'},
+          );
+
+          if (!mounted) return;
+
+          if (response.statusCode != 200) {
+            msg('Gagal memeriksa update. Coba lagi.');
             return;
           }
-          try {
-            final n = await KasirDB.instance.sync(apiKey);
-            if (mounted) msg('Sinkronisasi berhasil: $n transaksi');
-          } catch (e) {
-            if (mounted) msg('Sinkronisasi gagal: $e');
-          }
-        },
-      ),
-    ],
-  );
+
+          final data = jsonDecode(response.body);
+          final tag = data['tag_name'] ?? 'Versi terbaru';
+          final url = data['html_url'];
+
+          showDialog(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Pemeriksaan Update'),
+              content: Text('Rilis terbaru tersedia: $tag'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Tutup'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    if (url != null) {
+                      await launchUrl(
+                        Uri.parse(url),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                  child: const Text('Buka Rilis'),
+                ),
+              ],
+            ),
+          );
+        } catch (e) {
+          if (mounted) msg('Periksa koneksi internet lalu coba lagi.');
+        }
+      },
+    ),
+
+    const SizedBox(height: 12),
+
+    ListTile(
+      leading: const Icon(Icons.cloud_upload),
+      title: const Text('Sinkronisasi server'),
+      subtitle: const Text('Kirim transaksi pending'),
+      onTap: () async {
+        if (apiKey.isEmpty) {
+          msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.');
+          return;
+        }
+        try {
+          final n = await KasirDB.instance.sync(apiKey);
+          if (mounted) msg('Sinkronisasi berhasil: $n transaksi');
+        } catch (e) {
+          if (mounted) msg('Sinkronisasi gagal: $e');
+        }
+      },
+    ),
+  ],
+);
+
 }
