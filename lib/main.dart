@@ -218,6 +218,7 @@ class _HomeState extends State<Home> {
     level=TextEditingController(text:'Retail'),txnDiscount=TextEditingController(text:'0'),cash=TextEditingController();
   List<Map<String,Object?>> ps=[],ms=[];
 String? editingProductId;
+String? editingMemberId;
   final Map<String,Map<String,dynamic>> cart={};
   String method='Tunai'; int tab=0;
   int get subtotal=>cart.values.fold(0,(s,i)=>s+(i['price'] as int)*(i['qty'] as int));
