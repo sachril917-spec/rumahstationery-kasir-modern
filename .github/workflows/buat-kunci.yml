@@ -1,0 +1,40 @@
+
+name: Buat Kunci APK Sekali
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  buat-kunci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Buat keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore adl-release.jks \
+            -storepass "$STORE_PASS" \
+            -keypass "$STORE_PASS" \
+            -alias adlrelease \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Rumah Stationery, OU=ADL, O=ADL, L=Indonesia, ST=Jawa Tengah, C=ID"
+        env:
+          STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Siapkan file kunci untuk diunduh
+        run: |
+          mkdir hasil
+          cp adl-release.jks hasil/
+          base64 -w 0 adl-release.jks > hasil/KEYSTORE_BASE64.txt
+
+      - name: Simpan hasil sementara
+        uses: actions/upload-artifact@v4
+        with:
+          name: kunci-apk-rahasia
+          path: hasil/
+          retention-days: 1
