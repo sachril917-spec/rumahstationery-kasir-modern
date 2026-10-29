@@ -278,7 +278,81 @@ class _HomeState extends State<Home> {
       if(code.text.trim().isEmpty||name.text.trim().isEmpty||c==null||pr==null||m==null||q==null||s==null||c<0||pr<0||m<0||q<1||s<0){msg('Periksa data barang');return;}
       try{await KasirDB.instance.addProduct(code.text,name.text,c,pr,m,q,s);code.clear();name.clear();cost.text='0';price.clear();mid.clear();qty.text='10';stock.clear();await refresh();msg('Barang disimpan');}catch(e){msg('Gagal: pastikan kode unik');}
     },child:const Text('Simpan barang')),
-    ...ps.map((p)=>ListTile(title:Text('${p['name']}'),subtitle:Text('${p['code']} • Modal ${money((p['cost_price'] as int?)??0)} • Eceran ${money(p['price'] as int)} • Member ${money(p['member_price'] as int)}'),trailing:Text('Stok ${p['stock']}')))
+    
+...ps.map((item) => ListTile(
+  title: Text('${item['name']}'),
+  subtitle: Text(
+    '${item['code']} • Eceran ${money(item['price'] as int)} • Stok ${item['stock']}',
+  ),
+  trailing: Wrap(
+    spacing: 0,
+    children: [
+      IconButton(
+        tooltip: 'Edit barang',
+        icon: const Icon(Icons.edit, color: Colors.blue),
+        onPressed: () async {
+          code.text = '${item['code']}';
+          name.text = '${item['name']}';
+          cost.text = '${item['cost_price'] ?? 0}';
+          price.text = '${item['price']}';
+          mid.text = '${item['middle_price'] ?? 0}';
+          qty.text = '${item['middle_qty'] ?? 1}';
+          stock.text = '${item['stock']}';
+
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Edit Barang'),
+              content: const Text(
+                'Data barang sudah dimasukkan ke formulir. '
+                'Tutup dialog ini, lalu tekan Simpan barang '
+                'setelah fungsi penyimpanan diedit pada langkah berikutnya.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Lanjut'),
+                ),
+              ],
+            ),
+          );
+          if (ok == true && mounted) {
+            setState(() => tab = 1);
+          }
+        },
+      ),
+      IconButton(
+        tooltip: 'Hapus barang',
+        icon: const Icon(Icons.delete, color: Colors.red),
+        onPressed: () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Hapus barang?'),
+              content: Text('Hapus ${item['name']} dari daftar barang?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Hapus'),
+                ),
+              ],
+            ),
+          );
+          if (ok == true) {
+            await KasirDB.instance.deleteProduct('${item['id']}');
+            await refresh();
+            if (mounted) msg('Barang dihapus');
+          }
+        },
+      ),
+    ],
+  ),
+))
+
   ]);
   Widget memberPage()=>ListView(padding:const EdgeInsets.all(16),children:[
     const Text('Data member',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
