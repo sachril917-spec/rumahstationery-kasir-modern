@@ -33,85 +33,73 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
-      - name: Atur identitas APK
+      - name: Atur identitas APK dan tanda tangan
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -e
+          echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/adl-release.jks
+          test -s /tmp/adl-release.jks
+
           python3 - <<'PY'
           from pathlib import Path
           import re
 
           p = Path("android/app/build.gradle.kts")
           if not p.exists():
-              p = Path("android/app/build.gradle")
+              raise SystemExit("build.gradle.kts tidak ditemukan")
 
           s = p.read_text()
-          if p.name.endswith(".kts"):
-              pattern = r'applicationId\s*=\s*"[^"]+"'
-              replacement = 'applicationId = "com.adl.rumahstationery.kasirpercobaan91"'
-          else:
-              pattern = r'applicationId\s+"[^"]+"'
-              replacement = 'applicationId "com.adl.rumahstationery.kasirpercobaan91"'
 
-          s, n = re.subn(pattern, replacement, s, count=1)
+          s, n = re.subn(
+              r'applicationId\s*=\s*"[^"]+"',
+              'applicationId = "com.adl.rumahstationery.kasirpercobaan91"',
+              s, count=1
+          )
           if not n:
               raise SystemExit("applicationId tidak ditemukan")
+
+          if 'create("adlRelease")' not in s:
+              signing = '''
+              signingConfigs {
+                  create("adlRelease") {
+                      storeFile = file("/tmp/adl-release.jks")
+                      storePassword = System.getenv("STORE_PASSWORD")
+                      keyAlias = System.getenv("KEY_ALIAS_VALUE")
+                      keyPassword = System.getenv("SIGN_PASSWORD")
+                  }
+              }
+          '''
+              s = s.replace("android {", "android {\n" + signing, 1)
+
+          s, n = re.subn(
+              r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
+              'signingConfig = signingConfigs.getByName("adlRelease")',
+              s
+          )
+          if not n:
+              s, n = re.subn(
+                  r'buildTypes\s*\{\s*getByName\("release"\)\s*\{',
+                  'buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("adlRelease")',
+                  s, count=1
+              )
+          if not n:
+              raise SystemExit("Konfigurasi signing release tidak ditemukan")
+
           p.write_text(s)
 
           m = Path("android/app/src/main/AndroidManifest.xml")
-          s = m.read_text()
-          if "android.permission.INTERNET" not in s:
-              s = s.replace(
+          t = m.read_text()
+          if "android.permission.INTERNET" not in t:
+              t = t.replace(
                   "<application",
                   '    <uses-permission android:name="android.permission.INTERNET"/>\n    <application',
                   1
               )
-          m.write_text(s)
-          PY
-
-      - name: Siapkan keystore tetap
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "Secret keystore belum lengkap."
-            exit 1
-          fi
-
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/adl-release.jks
-          test -s android/app/adl-release.jks
-
-      - name: Konfigurasi tanda tangan release
-        env:
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
-          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("android/app/build.gradle.kts")
-          if not p.exists():
-              raise SystemExit("Workflow ini memerlukan android/app/build.gradle.kts")
-
-          s = p.read_text()
-          signing = '''
-          signingConfigs {
-              create("adlRelease") {
-                  storeFile = file("adl-release.jks")
-                  storePassword = System.getenv("STORE_PASSWORD")
-                  keyAlias = System.getenv("KEY_ALIAS_VALUE")
-                  keyPassword = System.getenv("SIGN_PASSWORD")
-              }
-          }
-          '''
-          s = s.replace("android {", "android {\n" + signing, 1)
-          s = s.replace(
-              'signingConfig = signingConfigs.getByName("debug")',
-              'signingConfig = signingConfigs.getByName("adlRelease")'
-          )
-          p.write_text(s)
+              m.write_text(t)
           PY
 
       - name: Unduh dependensi
@@ -120,11 +108,12 @@ jobs:
       - name: Build APK
         env:
           API_KEY: ${{ secrets.API_KEY }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "$API_KEY" ]; then
-            echo "Secret API_KEY belum diatur"
-            exit 1
-          fi
+          set -e
+          test -n "$API_KEY"
           flutter build apk --release --dart-define=API_KEY="$API_KEY"
 
       - name: Periksa APK
@@ -142,4 +131,4 @@ jobs:
 
       - name: Bersihkan keystore
         if: always()
-        run: rm -f android/app/adl-release.jks
+        run: rm -f /tmp/adl-release.jks
