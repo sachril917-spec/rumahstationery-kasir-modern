@@ -112,6 +112,44 @@ class KasirDB {
       'price_level':level,'discount_percent':discount});
   }
 
+  Future<void> updateProduct(
+    String id, String code, String name, int cost,
+    int price, int mid, int qty, int stock,
+  ) async {
+    if (qty < 1) throw Exception('Isi satuan minimal 1');
+    await db.update('products', {
+      'code': code.trim(),
+      'name': name.trim(),
+      'cost_price': cost,
+      'price': price,
+      'middle_price': mid,
+      'middle_qty': qty,
+      'member_price': mid ~/ qty,
+      'stock': stock,
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteProduct(String id) async {
+    await db.delete('products', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateMember(
+    String id, String code, String name, String phone,
+    String level, double discount,
+  ) async {
+    await db.update('members', {
+      'code': code.trim(),
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'price_level': level,
+      'discount_percent': discount,
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteMember(String id) async {
+    await db.delete('members', where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<String> invoice() async {
     final d=DateTime.now(); final prefix='RS${d.year}${d.month.toString().padLeft(2,'0')}${d.day.toString().padLeft(2,'0')}';
     final r=await db.rawQuery('SELECT COUNT(*) n FROM transactions WHERE invoice_no LIKE ?',['$prefix%']);
