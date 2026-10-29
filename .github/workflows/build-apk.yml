@@ -115,6 +115,12 @@ jobs:
           fi
           flutter build apk --release --dart-define=API_KEY="$API_KEY"
 
+      - name: Periksa APK
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          file "$APK"
+          unzip -t "$APK"
       - name: Simpan APK
         uses: actions/upload-artifact@v4
         with:
