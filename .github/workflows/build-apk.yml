@@ -32,74 +32,86 @@ jobs:
 
       - name: Buat platform Android
         run: flutter create --platforms=android .
-      - name: Atur identitas APK percobaan
+
+      - name: Atur identitas APK
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          files = [
-              Path("android/app/build.gradle.kts"),
-              Path("android/app/build.gradle")
-          ]
+          p = Path("android/app/build.gradle.kts")
+          if not p.exists():
+              p = Path("android/app/build.gradle")
 
-          found = False
-          for p in files:
-              if not p.exists():
-                  continue
-              s = p.read_text()
-              s, n = re.subn(
-                  r'applicationId\s*=\s*"[^"]+"',
-                  'applicationId = "com.adl.rumahstationery.kasirpercobaan"',
-                  s,
-                  count=1
-              )
-              if n == 0:
-                  s, n = re.subn(
-                      r'applicationId\s+"[^"]+"',
-                      'applicationId "com.adl.rumahstationery.kasirpercobaan"',
-                      s,
-                      count=1
-                  )
-              if n:
-                  p.write_text(s)
-                  found = True
-                  break
-
-          if not found:
-              raise SystemExit("applicationId tidak ditemukan")
-
-          p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          s = re.sub(
-              r'android:label="[^"]*"',
-              'android:label="Rumah Stationery Uji Coba"',
-              s,
-              count=1
-          )
-          p.write_text(s)
-          print("Identitas APK percobaan berhasil diatur")
-          PY
-      - name: Pasang Android NDK
-        run: |
-          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" "ndk;28.2.13676358"
+          if p.name.endswith(".kts"):
+              pattern = r'applicationId\s*=\s*"[^"]+"'
+              replacement = 'applicationId = "com.adl.rumahstationery.kasirpercobaan91"'
+          else:
+              pattern = r'applicationId\s+"[^"]+"'
+              replacement = 'applicationId "com.adl.rumahstationery.kasirpercobaan91"'
 
-      - name: Pastikan izin internet Android tersedia
+          s, n = re.subn(pattern, replacement, s, count=1)
+          if not n:
+              raise SystemExit("applicationId tidak ditemukan")
+          p.write_text(s)
+
+          m = Path("android/app/src/main/AndroidManifest.xml")
+          s = m.read_text()
+          if "android.permission.INTERNET" not in s:
+              s = s.replace(
+                  "<application",
+                  '    <uses-permission android:name="android.permission.INTERNET"/>\n    <application',
+                  1
+              )
+          m.write_text(s)
+          PY
+
+      - name: Siapkan keystore tetap
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "Secret keystore belum lengkap."
+            exit 1
+          fi
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/adl-release.jks
+          test -s android/app/adl-release.jks
+
+      - name: Konfigurasi tanda tangan release
+        env:
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text(encoding="utf-8")
-          izin = '<uses-permission android:name="android.permission.INTERNET"/>'
+          p = Path("android/app/build.gradle.kts")
+          if not p.exists():
+              raise SystemExit("Workflow ini memerlukan android/app/build.gradle.kts")
 
-          if "android.permission.INTERNET" not in s:
-              s = s.replace("<application", f"    {izin}\n    <application", 1)
-              p.write_text(s, encoding="utf-8")
-
-          print("Izin internet Android sudah diperiksa")
+          s = p.read_text()
+          signing = '''
+          signingConfigs {
+              create("adlRelease") {
+                  storeFile = file("adl-release.jks")
+                  storePassword = System.getenv("STORE_PASSWORD")
+                  keyAlias = System.getenv("KEY_ALIAS_VALUE")
+                  keyPassword = System.getenv("SIGN_PASSWORD")
+              }
+          }
+          '''
+          s = s.replace("android {", "android {\n" + signing, 1)
+          s = s.replace(
+              'signingConfig = signingConfigs.getByName("debug")',
+              'signingConfig = signingConfigs.getByName("adlRelease")'
+          )
+          p.write_text(s)
           PY
 
       - name: Unduh dependensi
@@ -119,11 +131,15 @@ jobs:
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
-          file "$APK"
           unzip -t "$APK"
+
       - name: Simpan APK
         uses: actions/upload-artifact@v4
         with:
           name: rumah-stationery-kasir-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      - name: Bersihkan keystore
+        if: always()
+        run: rm -f android/app/adl-release.jks
