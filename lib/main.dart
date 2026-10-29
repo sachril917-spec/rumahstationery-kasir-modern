@@ -292,6 +292,7 @@ Widget transactionPage() => FutureBuilder<List<Map<String, Object?>>>(
 );
 
     
+
 Widget adminPage() => ListView(
   padding: const EdgeInsets.all(16),
   children: [
@@ -320,24 +321,53 @@ Widget adminPage() => ListView(
               'sachril917-spec/rumahstationery-kasir-modern/releases/latest',
             ),
             headers: {'Accept': 'application/vnd.github+json'},
-          );
+          ).timeout(const Duration(seconds: 20));
 
           if (!mounted) return;
 
           if (response.statusCode != 200) {
-            msg('Gagal memeriksa update. Coba lagi.');
+            msg('Gagal cek update. Periksa koneksi internet.');
             return;
           }
 
-          final data = jsonDecode(response.body);
-          final tag = data['tag_name'] ?? 'Versi terbaru';
-          final url = data['html_url'];
+          final data =
+              jsonDecode(response.body) as Map<String, dynamic>;
+          final tag = data['tag_name']?.toString() ?? 'Versi terbaru';
+          final releaseUrl = data['html_url']?.toString();
+
+          String? apkUrl;
+          String? apkName;
+          final assets = data['assets'];
+
+          if (assets is List) {
+            for (final asset in assets) {
+              if (asset is Map &&
+                  asset['name'] is String &&
+                  (asset['name'] as String)
+                      .toLowerCase()
+                      .endsWith('.apk')) {
+                apkUrl = asset['browser_download_url']?.toString();
+                apkName = asset['name']?.toString();
+                break;
+              }
+            }
+          }
+
+          if (!mounted) return;
 
           showDialog(
             context: context,
             builder: (dialogContext) => AlertDialog(
-              title: const Text('Pemeriksaan Update'),
-              content: Text('Rilis terbaru tersedia: $tag'),
+              title: const Text('Update Rumah Stationery'),
+              content: Text(
+                apkUrl != null
+                    ? 'Rilis terbaru: $tag\n'
+                        'File: $apkName\n\n'
+                        'Unduh APK, lalu buka file dan pilih '
+                        'Perbarui. Jangan uninstall aplikasi.'
+                    : 'Rilis $tag ditemukan, tetapi file APK '
+                        'belum tersedia di rilis ini.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
@@ -346,20 +376,32 @@ Widget adminPage() => ListView(
                 FilledButton(
                   onPressed: () async {
                     Navigator.pop(dialogContext);
-                    if (url != null) {
-                      await launchUrl(
-                        Uri.parse(url),
-                        mode: LaunchMode.externalApplication,
-                      );
+                    final target = apkUrl ?? releaseUrl;
+                    if (target == null) return;
+
+                    final uri = Uri.tryParse(target);
+                    if (uri == null) return;
+
+                    final opened = await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+
+                    if (!opened && mounted) {
+                      msg('Tidak bisa membuka link unduhan.');
                     }
                   },
-                  child: const Text('Buka Rilis'),
+                  child: Text(
+                    apkUrl != null ? 'Unduh APK' : 'Buka Rilis',
+                  ),
                 ),
               ],
             ),
           );
         } catch (e) {
-          if (mounted) msg('Periksa koneksi internet lalu coba lagi.');
+          if (mounted) {
+            msg('Gagal cek update. Coba lagi.');
+          }
         }
       },
     ),
@@ -377,7 +419,9 @@ Widget adminPage() => ListView(
         }
         try {
           final n = await KasirDB.instance.sync(apiKey);
-          if (mounted) msg('Sinkronisasi berhasil: $n transaksi');
+          if (mounted) {
+            msg('Sinkronisasi berhasil: $n transaksi');
+          }
         } catch (e) {
           if (mounted) msg('Sinkronisasi gagal: $e');
         }
@@ -385,5 +429,6 @@ Widget adminPage() => ListView(
     ),
   ],
 );
+
 
 }
