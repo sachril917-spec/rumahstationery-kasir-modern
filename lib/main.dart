@@ -406,9 +406,55 @@ FilledButton(
     TextField(controller:memberCode,decoration:const InputDecoration(labelText:'Kode member')),TextField(controller:memberName,decoration:const InputDecoration(labelText:'Nama')),
     TextField(controller:phone,decoration:const InputDecoration(labelText:'Telepon')),TextField(controller:level,decoration:const InputDecoration(labelText:'Level harga')),
     TextField(controller:discount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Diskon %')),
-    FilledButton(onPressed:()async{final d=double.tryParse(discount.text)??-1;if(memberCode.text.trim().isEmpty||memberName.text.trim().isEmpty||d<0||d>100){msg('Data member tidak valid');return;}
-      try{await KasirDB.instance.addMember(memberCode.text,memberName.text,phone.text,level.text,d);memberCode.clear();memberName.clear();phone.clear();discount.text='0';await refresh();msg('Member disimpan');}catch(e){msg('Kode member mungkin sudah dipakai');}
-    },child:const Text('Simpan member')),
+    
+FilledButton(
+  onPressed: () async {
+    final d = double.tryParse(discount.text) ?? -1;
+
+    if (memberCode.text.trim().isEmpty ||
+        memberName.text.trim().isEmpty ||
+        d < 0 || d > 100) {
+      msg('Data member tidak valid');
+      return;
+    }
+
+    try {
+      if (editingMemberId != null) {
+        await KasirDB.instance.updateMember(
+          editingMemberId!,
+          memberCode.text,
+          memberName.text,
+          phone.text,
+          level.text,
+          d,
+        );
+        editingMemberId = null;
+        msg('Perubahan member berhasil disimpan');
+      } else {
+        await KasirDB.instance.addMember(
+          memberCode.text,
+          memberName.text,
+          phone.text,
+          level.text,
+          d,
+        );
+        msg('Member baru disimpan');
+      }
+
+      memberCode.clear();
+      memberName.clear();
+      phone.clear();
+      level.text = 'Retail';
+      discount.text = '0';
+
+      await refresh();
+    } catch (e) {
+      msg('Gagal menyimpan. Pastikan kode member unik.');
+    }
+  },
+  child: const Text('Simpan member'),
+),
+
     ...ms.map((m)=>ListTile(title:Text('${m['name']}'),subtitle:Text("${m['code']} • ${m['phone']} • ${m['price_level']} • ${m['discount_percent']}%")))
   ]);
   
