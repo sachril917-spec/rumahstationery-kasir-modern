@@ -328,6 +328,7 @@ FilledButton(
         tooltip: 'Edit barang',
         icon: const Icon(Icons.edit, color: Colors.blue),
         onPressed: () async {
+   editingProductId = '${item['id']}';
           code.text = '${item['code']}';
           name.text = '${item['name']}';
           cost.text = '${item['cost_price'] ?? 0}';
