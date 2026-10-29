@@ -274,10 +274,46 @@ class _HomeState extends State<Home> {
     TextField(controller:mid,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Harga member satuan tengah')),
     TextField(controller:qty,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Isi satuan tengah (pcs)')),
     TextField(controller:stock,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Stok awal')),
-    FilledButton(onPressed:()async{final c=int.tryParse(cost.text),pr=int.tryParse(price.text),m=int.tryParse(mid.text),q=int.tryParse(qty.text),s=int.tryParse(stock.text);
-      if(code.text.trim().isEmpty||name.text.trim().isEmpty||c==null||pr==null||m==null||q==null||s==null||c<0||pr<0||m<0||q<1||s<0){msg('Periksa data barang');return;}
-      try{await KasirDB.instance.addProduct(code.text,name.text,c,pr,m,q,s);code.clear();name.clear();cost.text='0';price.clear();mid.clear();qty.text='10';stock.clear();await refresh();msg('Barang disimpan');}catch(e){msg('Gagal: pastikan kode unik');}
-    },child:const Text('Simpan barang')),
+    
+FilledButton(
+  onPressed: () async {
+    final c = int.tryParse(cost.text);
+    final pr = int.tryParse(price.text);
+    final m = int.tryParse(mid.text);
+    final q = int.tryParse(qty.text);
+    final s = int.tryParse(stock.text);
+
+    if (code.text.trim().isEmpty ||
+        name.text.trim().isEmpty ||
+        c == null || pr == null || m == null ||
+        q == null || s == null ||
+        c < 0 || pr < 0 || m < 0 || q < 1 || s < 0) {
+      msg('Periksa data barang');
+      return;
+    }
+
+    try {
+      await KasirDB.instance.addProduct(
+        code.text, name.text, c, pr, m, q, s,
+      );
+
+      code.clear();
+      name.clear();
+      cost.text = '0';
+      price.clear();
+      mid.clear();
+      qty.text = '10';
+      stock.clear();
+
+      await refresh();
+      msg('Barang disimpan');
+    } catch (e) {
+      msg('Gagal: pastikan kode barang unik');
+    }
+  },
+  child: const Text('Simpan barang'),
+),
+
     
 ...ps.map((item) => ListTile(
   title: Text('${item['name']}'),
