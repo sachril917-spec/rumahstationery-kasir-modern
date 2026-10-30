@@ -35,7 +35,7 @@ class KasirDB {
   Future<void> init() async {
     db = await openDatabase(
       p.join(await getDatabasesPath(), 'rumah_stationery.db'),
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE products(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
