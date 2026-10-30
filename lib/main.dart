@@ -778,7 +778,9 @@ class _HomeState extends State<Home> {
                   title: Text('${entry.value['name']} × ${entry.value['qty']}',
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: Text('Harga ${money(entry.value['price'] as int)} • Diskon ${money(entry.value['discount'] as int)}'),
-                  trailing: Wrap(mainAxisSize: MainAxisSize.min, children: [
+                  trailing: Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
                     Text(money((entry.value['price'] as int) * (entry.value['qty'] as int))),
                     IconButton(visualDensity: VisualDensity.compact,
                       onPressed: () => setState(() => cart.remove(entry.key)),
