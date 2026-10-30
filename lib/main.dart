@@ -1431,6 +1431,179 @@ Future<void> checkUpdate() async {
             },
           ),
         );
+Widget incomePage() => RefreshIndicator(
+  onRefresh: refreshIncome,
+  child: ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      titleSection(
+        'Pendapatan Harian',
+        subtitle: 'Ringkasan penjualan dan pengeluaran cabang',
+      ),
+
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.calendar_month),
+          title: const Text('Tanggal laporan'),
+          subtitle: Text(formatDate(selectedIncomeDate)),
+          trailing: const Icon(Icons.edit_calendar),
+          onTap: () async {
+            final selected = await showDatePicker(
+              context: context,
+              initialDate: selectedIncomeDate,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+            );
+
+            if (selected != null) {
+              setState(() => selectedIncomeDate = selected);
+              await refreshIncome();
+            }
+          },
+        ),
+      ),
+
+      Card(
+        color: Colors.green.shade50,
+        child: ListTile(
+          title: const Text('Total Penjualan'),
+          subtitle: const Text('Dari transaksi tersimpan'),
+          trailing: Text(
+            money(dailySalesTotal),
+            style: const TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+            ),
+          ),
+        ),
+      ),
+
+      Card(
+        color: Colors.red.shade50,
+        child: ListTile(
+          title: const Text('Total Pengeluaran'),
+          trailing: Text(
+            money(dailyExpenseTotal),
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+            ),
+          ),
+        ),
+      ),
+
+      Card(
+        child: ListTile(
+          title: const Text(
+            'Pendapatan Bersih',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: const Text('Penjualan dikurangi pengeluaran'),
+          trailing: Text(
+            money(dailySalesTotal - dailyExpenseTotal),
+            style: TextStyle(
+              color: dailySalesTotal - dailyExpenseTotal >= 0
+                  ? Colors.green
+                  : Colors.red,
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 12),
+
+      FilledButton.icon(
+        onPressed: () => showExpenseForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah Pengeluaran'),
+      ),
+
+      const SizedBox(height: 16),
+
+      titleSection(
+        'Riwayat Pengeluaran',
+        subtitle: '${expenseRows.length} catatan pada tanggal ini',
+      ),
+
+      if (loadingIncome)
+        const Center(child: CircularProgressIndicator()),
+
+      if (!loadingIncome && expenseRows.isEmpty)
+        const Card(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(
+              child: Text('Belum ada pengeluaran pada tanggal ini.'),
+            ),
+          ),
+        ),
+
+      ...expenseRows.map((expense) {
+        final synced = expense['sync_status'] == 'synced';
+
+        return Card(
+          child: ListTile(
+            title: Text(
+              '${expense['description']}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Row(
+              children: [
+                Icon(
+                  synced ? Icons.cloud_done : Icons.cloud_upload_outlined,
+                  size: 15,
+                  color: synced ? Colors.green : Colors.orange,
+                ),
+                const SizedBox(width: 5),
+                Text(synced ? 'Tersinkron' : 'Menunggu sinkronisasi'),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  money(expense['amount'] as int),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      showExpenseForm(expense: expense);
+                    } else if (value == 'delete') {
+                      removeExpense(expense);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Hapus'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+
+      const SizedBox(height: 16),
+
+      OutlinedButton.icon(
+        onPressed: syncing ? null : syncTransactions,
+        icon: const Icon(Icons.cloud_sync),
+        label: const Text('Sinkronkan Penjualan dan Pengeluaran'),
+      ),
+    ],
+  ),
+);
 
   Widget adminPage() => ListView(padding: const EdgeInsets.all(16), children: [
     titleSection('Pengaturan admin', subtitle: 'Identitas cabang dan pengelolaan aplikasi'),
