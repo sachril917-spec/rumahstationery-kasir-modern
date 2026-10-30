@@ -289,6 +289,150 @@ await db.execute('''CREATE TABLE expenses(
     }
     return count;
   }
+  Future<List<Map<String, Object?>>> expenses(String date) {
+    return db.query(
+      'expenses',
+      where: 'expense_date = ? AND deleted_at IS NULL',
+      whereArgs: [date],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  Future<int> dailySales(String date) async {
+    final result = await db.rawQuery(
+      '''SELECT COALESCE(SUM(total), 0) AS total
+         FROM transactions
+         WHERE substr(time, 1, 10) = ?''',
+      [date],
+    );
+
+    return (result.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<int> dailyExpenses(String date) async {
+    final result = await db.rawQuery(
+      '''SELECT COALESCE(SUM(amount), 0) AS total
+         FROM expenses
+         WHERE expense_date = ? AND deleted_at IS NULL''',
+      [date],
+    );
+
+    return (result.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> addExpense({
+    required String branch,
+    required String date,
+    required String description,
+    required int amount,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+
+    await db.insert('expenses', {
+      'id': uuid.v4(),
+      'branch': branch,
+      'expense_date': date,
+      'description': description.trim(),
+      'amount': amount,
+      'created_at': now,
+      'updated_at': now,
+      'deleted_at': null,
+      'sync_status': 'pending',
+    });
+  }
+
+  Future<void> updateExpense({
+    required String id,
+    required String description,
+    required int amount,
+  }) async {
+    await db.update('expenses', {
+      'description': description.trim(),
+      'amount': amount,
+      'updated_at': DateTime.now().toIso8601String(),
+      'sync_status': 'pending',
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteExpense(String id) async {
+    final now = DateTime.now().toIso8601String();
+
+    await db.update('expenses', {
+      'deleted_at': now,
+      'updated_at': now,
+      'sync_status': 'pending',
+    }, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> syncExpenses(String key) async {
+    final rows = await db.query(
+      'expenses',
+      where: "sync_status = 'pending'",
+      orderBy: 'updated_at ASC',
+      limit: 100,
+    );
+
+    if (rows.isEmpty) return 0;
+
+    final groups = <String, List<Map<String, Object?>>>{};
+
+    for (final row in rows) {
+      groups.putIfAbsent('${row['branch']}', () => []).add(row);
+    }
+
+    var count = 0;
+
+    for (final group in groups.entries) {
+      final items = group.value.map((r) => {
+        'id': r['id'],
+        'expense_date': r['expense_date'],
+        'description': r['description'],
+        'amount': r['amount'],
+        'created_at': r['created_at'],
+        'updated_at': r['updated_at'],
+        'deleted_at': r['deleted_at'],
+      }).toList();
+
+      final response = await http.post(
+        Uri.parse('$apiUrl/sync/expenses'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $key',
+        },
+        body: jsonEncode({
+          'device_id': 'rumah-stationery-android',
+          'branch_id': group.key,
+          'expenses': items,
+        }),
+      ).timeout(const Duration(seconds: 25));
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Sinkronisasi pengeluaran gagal: HTTP ${response.statusCode}',
+        );
+      }
+
+      final result = jsonDecode(response.body);
+
+      if (result['success'] != true) {
+        throw Exception(
+          result['message'] ?? 'Sinkronisasi pengeluaran gagal',
+        );
+      }
+
+      for (final row in group.value) {
+        await db.update(
+          'expenses',
+          {'sync_status': 'synced'},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        count++;
+      }
+    }
+
+    return count;
+  }
 }
 
 class RumahStationeryApp extends StatelessWidget {
