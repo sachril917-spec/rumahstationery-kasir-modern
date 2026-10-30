@@ -212,6 +212,29 @@ class RumahStationeryApp extends StatelessWidget {
 
 class Home extends StatefulWidget { const Home({super.key}); @override State<Home> createState()=>_HomeState(); }
 class _HomeState extends State<Home> {
+  late DateTime _now;
+  Timer? _clockTimer;
+
+  String get _dateLabel {
+    const days = [
+      'Senin', 'Selasa', 'Rabu', 'Kamis',
+      'Jumat', 'Sabtu', 'Minggu'
+    ];
+
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April',
+      'Mei', 'Juni', 'Juli', 'Agustus',
+      'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    return '${days[_now.weekday - 1]}, ${_now.day} '
+        '${months[_now.month - 1]} ${_now.year}';
+  }
+
+  String get _timeLabel =>
+      '${_now.hour.toString().padLeft(2, '0')}:'
+      '${_now.minute.toString().padLeft(2, '0')}:'
+      '${_now.second.toString().padLeft(2, '0')} WIB';
   final search=TextEditingController(),code=TextEditingController(),name=TextEditingController(),cost=TextEditingController(text:'0'),
     price=TextEditingController(),mid=TextEditingController(),qty=TextEditingController(text:'10'),stock=TextEditingController(),
     cashier=TextEditingController(text:'Kasir 1'),branch=TextEditingController(text:'PERCOBAAN APK BARU'),memberCode=TextEditingController(),
@@ -231,8 +254,40 @@ String? editingMemberId;
   String money(int n)=>'Rp ${n.toString().replaceAllMapped(RegExp(r"(\\d)(?=(\\d{3})+(?!\\d))"),(m)=>'${m[1]}.')}';
   void msg(String s)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(s)));
   Future<void> refresh() async {final a=await KasirDB.instance.products(search.text),b=await KasirDB.instance.members();if(mounted)setState(()=>{ps=a,ms=b});}
-  @override void initState(){super.initState();refresh();}
-  @override void dispose(){for(final c in [search,code,name,cost,price,mid,qty,stock,cashier,branch,memberCode,memberName,phone,discount,level,txnDiscount,cash]){c.dispose();}super.dispose();}
+  @override
+void initState() {
+  super.initState();
+
+  _now = DateTime.now();
+
+  _clockTimer = Timer.periodic(
+    const Duration(seconds: 1),
+    (_) {
+      if (mounted) {
+        setState(() {
+          _now = DateTime.now();
+        });
+      }
+    },
+  );
+
+  refresh();
+}
+
+@override
+void dispose() {
+  _clockTimer?.cancel();
+
+  for (final c in [
+    search, code, name, cost, price, mid, qty, stock,
+    cashier, branch, memberCode, memberName, phone,
+    discount, level, txnDiscount, cash
+  ]) {
+    c.dispose();
+  }
+
+  super.dispose();
+}
   void add(Map<String,Object?> p){final id='${p['id']}';setState((){if(cart.containsKey(id)){cart[id]!['qty']=(cart[id]!['qty'] as int)+1;}else{final m=memberCode.text.isNotEmpty;cart[id]={'id':id,'name':p['name'],'price':m?(p['member_price'] as int):(p['price'] as int),'qty':1,'discount':0};}});}
   Future<void> chooseMember() async {
     final selected=await showDialog<Map<String,Object?>>(context:context,builder:(ctx)=>SimpleDialog(title:const Text('Pilih member'),children:[
