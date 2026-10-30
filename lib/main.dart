@@ -97,6 +97,19 @@ await db.execute('''CREATE TABLE expenses(
           await db.execute("ALTER TABLE transactions ADD COLUMN amount_paid INTEGER NOT NULL DEFAULT 0");
           await db.execute("ALTER TABLE transactions ADD COLUMN change_amount INTEGER NOT NULL DEFAULT 0");
         }
+        if (oldVersion < 5) {
+  await db.execute('''CREATE TABLE IF NOT EXISTS expenses(
+    id TEXT PRIMARY KEY,
+    branch TEXT NOT NULL,
+    expense_date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    sync_status TEXT NOT NULL DEFAULT 'pending'
+  )''');
+}
       },
     );
   }
