@@ -8,7 +8,9 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 const apiKey = String.fromEnvironment('API_KEY');
 const apiUrl = 'https://rumah-stationery-api.sachril917.workers.dev';
