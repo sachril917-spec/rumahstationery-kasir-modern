@@ -552,6 +552,7 @@ int dailyExpenseTotal = 0;
       if (mounted) setState(() => _now = DateTime.now());
     });
     refreshAll();
+ refreshIncome();
   }
 
   @override
@@ -971,7 +972,8 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
         selectedMember = null; memberCode.clear(); memberName.clear();
       });
       await refreshAll();
-      msg('Transaksi tersimpan offline');
+await refreshIncome();
+msg('Transaksi tersimpan offline');
     } catch (e) {
       msg('Transaksi gagal: $e');
     } finally {
