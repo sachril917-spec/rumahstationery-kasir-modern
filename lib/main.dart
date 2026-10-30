@@ -667,48 +667,86 @@ int compareVersions(String current, String latest) {
   return 0;
 }
 
+
 Future<void> checkUpdate() async {
-  if (checkingUpdate || downloadingUpdate) return;
-
-  setState(() {
-    checkingUpdate = true;
-    updateStatus = 'Memeriksa versi terbaru...';
-  });
-
   try {
-    final info = await PackageInfo.fromPlatform();
-    final currentVersion = info.version;
+    // Membaca versi aplikasi yang sedang terpasang
+    final packageInfo = await PackageInfo.fromPlatform();
+    final installedVersion = packageInfo.version;
 
+    // Mengambil versi terbaru dari GitHub
     final response = await http.get(
       Uri.parse(
-        'https://api.github.com/repos/'
-        'sachril917-spec/rumahstationery-kasir-modern/releases/latest',
+        'https://api.github.com/repos/sachril917-spec/rumahstationery-kasir-modern/releases/latest',
       ),
       headers: {'Accept': 'application/vnd.github+json'},
     ).timeout(const Duration(seconds: 20));
 
+    if (!mounted) return;
+
     if (response.statusCode != 200) {
-      throw Exception('Gagal mengambil informasi versi GitHub');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final tag = '${data['tag_name'] ?? ''}';
-    final latestVersion = tag.replaceFirst(RegExp(r'^[vV]'), '');
-
-    if (latestVersion.isEmpty) {
-      throw Exception('Nomor versi terbaru tidak ditemukan');
-    }
-
-    if (compareVersions(currentVersion, latestVersion) >= 0) {
-      if (!mounted) return;
-      setState(() {
-        checkingUpdate = false;
-        updateStatus = 'Aplikasi sudah versi terbaru ($currentVersion)';
-      });
-      msg('Tidak ada update. Aplikasi sudah versi terbaru.');
+      msg('Gagal cek update. Periksa koneksi internet.');
       return;
     }
 
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final tag = data['tag_name']?.toString() ?? '';
+    final latestVersion = tag.replaceFirst(RegExp(r'^v'), '');
+
+    // Membandingkan versi, misalnya 1.0.2 dengan 1.0.1
+    List<int> parseVersion(String value) {
+      return value.split('.').map((part) {
+        return int.tryParse(part) ?? 0;
+      }).toList();
+    }
+
+    int compareVersion(String a, String b) {
+      final va = parseVersion(a);
+      final vb = parseVersion(b);
+      final length = va.length > vb.length ? va.length : vb.length;
+
+      for (var i = 0; i < length; i++) {
+        final x = i < va.length ? va[i] : 0;
+        final y = i < vb.length ? vb[i] : 0;
+
+        if (x > y) return 1;
+        if (x < y) return -1;
+      }
+      return 0;
+    }
+
+    if (latestVersion.isEmpty) {
+      msg('Versi terbaru GitHub tidak ditemukan.');
+      return;
+    }
+
+    final comparison = compareVersion(
+      latestVersion,
+      installedVersion,
+    );
+
+    // Jika versi terpasang sama atau lebih baru
+    if (comparison <= 0) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Rumah Stationery'),
+          content: Text(
+            'Aplikasi sudah versi terbaru.\n\n'
+            'Versi terpasang: $installedVersion',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Jika ada versi yang lebih baru
     String? apkUrl;
     String? apkName;
 
@@ -724,131 +762,53 @@ Future<void> checkUpdate() async {
       }
     }
 
-    if (apkUrl == null) {
-      throw Exception('File APK belum tersedia di GitHub Releases');
-    }
+    final releaseUrl = data['html_url']?.toString();
 
-    if (!Platform.isAndroid) {
-      throw Exception('Pemasangan otomatis hanya tersedia di Android');
-    }
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update tersedia'),
+        content: Text(
+          'Versi terpasang: $installedVersion\n'
+          'Versi terbaru: $latestVersion\n'
+          'File: ${apkName ?? 'APK belum tersedia'}\n\n'
+          'Silakan unduh dan pasang pembaruan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Nanti'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
 
-    if (!mounted) return;
+              final target = apkUrl ?? releaseUrl;
+              if (target == null) return;
 
-    setState(() {
-      checkingUpdate = false;
-      downloadingUpdate = true;
-      updateProgress = 0;
-      updateStatus = 'Menyiapkan unduhan versi $latestVersion...';
-    });
+              final uri = Uri.tryParse(target);
+              if (uri == null) return;
 
-    await downloadAndInstall(apkUrl, apkName ?? 'rumah-stationery.apk');
-  } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      checkingUpdate = false;
-      downloadingUpdate = false;
-      updateStatus = 'Pemeriksaan update gagal';
-    });
-    msg('Gagal cek update: $e');
-  }
-}
+              final opened = await launchUrl(
+                uri,
+                mode: LaunchMode.externalApplication,
+              );
 
-Future<void> downloadAndInstall(String url, String fileName) async {
-  final client = http.Client();
-  File? apkFile;
-
-  try {
-    final directory = await getApplicationSupportDirectory();
-    apkFile = File('${directory.path}/rumah-stationery-update.apk');
-
-    if (await apkFile.exists()) {
-      await apkFile.delete();
-    }
-
-    final request = http.Request('GET', Uri.parse(url));
-    request.headers['Accept'] = 'application/octet-stream';
-
-    final response = await client.send(request)
-        .timeout(const Duration(seconds: 60));
-
-    if (response.statusCode != 200) {
-      throw Exception('Unduhan gagal: HTTP ${response.statusCode}');
-    }
-
-    final totalBytes = response.contentLength ?? 0;
-    var receivedBytes = 0;
-
-    final sink = apkFile.openWrite();
-
-    try {
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        receivedBytes += chunk.length;
-
-        if (mounted && totalBytes > 0) {
-          setState(() {
-            updateProgress =
-                (receivedBytes / totalBytes).clamp(0.0, 1.0);
-            updateStatus =
-                'Mengunduh ${(updateProgress * 100).round()}%';
-          });
-        }
-      }
-
-      await sink.flush();
-      await sink.close();
-    } catch (_) {
-      await sink.close();
-      rethrow;
-    }
-
-    if (receivedBytes == 0 || !await apkFile.exists()) {
-      throw Exception('File APK kosong atau tidak ditemukan');
-    }
-
-    if (totalBytes > 0 && receivedBytes != totalBytes) {
-      throw Exception('Unduhan belum lengkap. Silakan coba lagi.');
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      updateProgress = 1;
-      updateStatus = 'Unduhan selesai 100%. Membuka pemasangan...';
-    });
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    await OpenFilex.open(
-      apkFile.path,
-      type: 'application/vnd.android.package-archive',
+              if (!opened && mounted) {
+                msg('Tidak bisa membuka link unduhan.');
+              }
+            },
+            child: Text(apkUrl != null ? 'Unduh Update' : 'Buka Rilis'),
+          ),
+        ],
+      ),
     );
-
-    if (!mounted) return;
-
-    setState(() {
-      downloadingUpdate = false;
-      updateStatus = 'APK selesai diunduh. Silakan perbarui aplikasi.';
-    });
   } catch (e) {
-    if (apkFile != null && await apkFile.exists()) {
-      await apkFile.delete();
+    if (mounted) {
+      msg('Gagal cek update. Coba lagi. ($e)');
     }
-
-    if (!mounted) return;
-
-    setState(() {
-      downloadingUpdate = false;
-      updateProgress = 0;
-      updateStatus = 'Unduhan gagal. Tekan cek update untuk mencoba lagi.';
-    });
-
-    msg('Unduhan gagal: $e');
-  } finally {
-    client.close();
   }
 }
-
 
   Widget titleSection(String title, {String? subtitle}) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
