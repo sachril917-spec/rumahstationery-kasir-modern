@@ -918,7 +918,9 @@ class _HomeState extends State<Home> {
       title: Text('${m['name']}'),
       subtitle: Text("${m['code']} • ${m['phone']}\n${m['price_level']} • Diskon ${m['discount_percent']}%"),
       isThreeLine: true,
-      trailing: Wrap(mainAxisSize: MainAxisSize.min, children: [
+      trailing: Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
         IconButton(icon: const Icon(Icons.edit, color: Colors.blue),
             onPressed: () => editMember(m)),
         IconButton(icon: const Icon(Icons.delete, color: Colors.red),
