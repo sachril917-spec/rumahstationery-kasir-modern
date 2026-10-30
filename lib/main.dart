@@ -1125,8 +1125,54 @@ Future<void> downloadAndInstall(String url, String fileName) async {
     const SizedBox(height: 8),
     TextField(controller: cashier, decoration: const InputDecoration(labelText: 'Nama kasir')),
     const SizedBox(height: 16),
-    FilledButton.icon(icon: const Icon(Icons.system_update),
-        label: const Text('Cek Update Aplikasi'), onPressed: checkUpdate),
+    FilledButton.icon(
+  icon: checkingUpdate || downloadingUpdate
+      ? const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+      : const Icon(Icons.system_update),
+  label: Text(
+    checkingUpdate
+        ? 'Memeriksa update...'
+        : downloadingUpdate
+            ? 'Mengunduh ${(updateProgress * 100).round()}%'
+            : 'Cek Update Aplikasi',
+  ),
+  onPressed: checkingUpdate || downloadingUpdate
+      ? null
+      : checkUpdate,
+),
+if (checkingUpdate || downloadingUpdate || updateStatus.isNotEmpty) ...[
+  const SizedBox(height: 12),
+  Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            updateStatus,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          if (downloadingUpdate) ...[
+            const SizedBox(height: 12),
+            LinearProgressIndicator(value: updateProgress),
+            const SizedBox(height: 8),
+            Text(
+              '${(updateProgress * 100).round()}%',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ],
+      ),
+    ),
+  ),
+],
     const SizedBox(height: 12),
     Card(child: ListTile(
       leading: syncing
