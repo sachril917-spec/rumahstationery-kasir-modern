@@ -94,15 +94,25 @@ jobs:
 
           p.write_text(s)
 
-          m = Path("android/app/src/main/AndroidManifest.xml")
-          t = m.read_text()
-          if "android.permission.INTERNET" not in t:
-              t = t.replace(
-                  "<application",
-                  '    <uses-permission android:name="android.permission.INTERNET"/>\n    <application',
-                  1
-              )
-              m.write_text(t)
+          
+m = Path("android/app/src/main/AndroidManifest.xml")
+t = m.read_text()
+
+permissions = [
+    "android.permission.INTERNET",
+    "android.permission.REQUEST_INSTALL_PACKAGES",
+]
+
+for permission in permissions:
+    if permission not in t:
+        t = t.replace(
+            "<application",
+            f'    <uses-permission android:name="{permission}"/>\n    <application',
+            1
+        )
+
+m.write_text(t)
+
           PY
 
       - name: Unduh dependensi
