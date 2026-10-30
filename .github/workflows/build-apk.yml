@@ -108,13 +108,21 @@ jobs:
       - name: Unduh dependensi
         run: flutter pub get
 
+      
       - name: Build APK
         env:
           API_KEY: ${{ secrets.API_KEY }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
           test -n "$API_KEY"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS_VALUE"
+          test -n "$SIGN_PASSWORD"
           flutter build apk --release --dart-define=API_KEY="$API_KEY"
+
 
       - name: Periksa APK
         run: |
