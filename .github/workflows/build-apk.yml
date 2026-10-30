@@ -36,7 +36,47 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
-      - name: Atur identitas APK dan tanda tangan
+      - name: Tentukan versi sebelum build
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          REPO="${GITHUB_REPOSITORY}"
+          LATEST_TAG="$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName // empty')"
+
+          if [ -z "$LATEST_TAG" ]; then
+            BASE_VERSION="$(sed -n 's/^version: *//p' pubspec.yaml | head -n 1 | cut -d '+' -f 1)"
+            NEXT_TAG="v$BASE_VERSION"
+          else
+            NEXT_TAG="$(python3 - "$LATEST_TAG" <<'PY'
+          import re
+          import sys
+
+          tag = sys.argv[1].strip()
+          match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
+
+          if not match:
+              raise SystemExit(f"Format tag tidak valid: {tag}")
+
+          major, minor, patch = map(int, match.groups())
+          print(f"v{major}.{minor}.{patch + 1}")
+          PY
+          )"
+          fi
+
+          VERSION="${NEXT_TAG#v}"
+          BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
+
+          echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+          echo "Versi APK: $VERSION"
+          echo "Build number: $BUILD_NUMBER"
+
+      - name: Atur identitas APK, signing, dan izin Android
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -44,6 +84,7 @@ jobs:
           SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
+
           echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/adl-release.jks
           test -s /tmp/adl-release.jks
 
@@ -60,8 +101,10 @@ jobs:
           s, n = re.subn(
               r'applicationId\s*=\s*"[^"]+"',
               'applicationId = "com.adl.rumahstationery.kasirpercobaan91"',
-              s, count=1
+              s,
+              count=1
           )
+
           if not n:
               raise SystemExit("applicationId tidak ditemukan")
 
@@ -75,7 +118,7 @@ jobs:
                       keyPassword = System.getenv("SIGN_PASSWORD")
                   }
               }
-          '''
+              '''
               s = s.replace("android {", "android {\n" + signing, 1)
 
           s, n = re.subn(
@@ -83,20 +126,25 @@ jobs:
               'signingConfig = signingConfigs.getByName("adlRelease")',
               s
           )
+
           if not n:
               s, n = re.subn(
                   r'buildTypes\s*\{\s*getByName\("release"\)\s*\{',
                   'buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("adlRelease")',
-                  s, count=1
+                  s,
+                  count=1
               )
+
           if not n:
               raise SystemExit("Konfigurasi signing release tidak ditemukan")
 
           p.write_text(s)
 
-          
-
           m = Path("android/app/src/main/AndroidManifest.xml")
+
+          if not m.exists():
+              raise SystemExit("AndroidManifest.xml tidak ditemukan")
+
           t = m.read_text()
 
           permissions = [
@@ -113,28 +161,23 @@ jobs:
                   )
 
           m.write_text(t)
-
-
           PY
 
       - name: Unduh dependensi
         run: flutter pub get
 
-      
       - name: Build APK
         env:
           API_KEY: ${{ secrets.API_KEY }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
-          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
-          test -n "$API_KEY"
-          test -n "$STORE_PASSWORD"
-          test -n "$KEY_ALIAS_VALUE"
-          test -n "$SIGN_PASSWORD"
-          flutter build apk --release --dart-define=API_KEY="$API_KEY"
 
+          test -n "$API_KEY"
+
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build_number }}" \
+            --dart-define=API_KEY="$API_KEY"
 
       - name: Periksa APK
         run: |
@@ -150,44 +193,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Tentukan nomor versi Release berikutnya
-        id: version
+      - name: Terbitkan APK ke GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          REPO="${GITHUB_REPOSITORY}"
-          LATEST_TAG="$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName // empty')"
 
-          if [ -z "$LATEST_TAG" ]; then
-            NEXT_TAG="v1.0.0"
-          else
-            NEXT_TAG="$(python3 - "$LATEST_TAG" <<'PY'
-          import re
-          import sys
-
-          tag = sys.argv[1].strip()
-          match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
-          if not match:
-              raise SystemExit(
-                  f"Tag terakhir '{tag}' bukan format semver vMAJOR.MINOR.PATCH. "
-                  "Perbaiki tag Release terakhir secara manual."
-              )
-
-          major, minor, patch = map(int, match.groups())
-          print(f"v{major}.{minor}.{patch + 1}")
-          PY
-          )"
-          fi
-
-          echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
-          echo "Release berikutnya: $NEXT_TAG"
-
-      - name: Terbitkan APK otomatis ke GitHub Releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
           APK="build/app/outputs/flutter-apk/app-release.apk"
           TAG="${{ steps.version.outputs.tag }}"
 
@@ -198,7 +209,8 @@ jobs:
 
           Commit: $GITHUB_SHA
 
-          APK ini dibuat setelah proses build berhasil."
+          Versi: ${{ steps.version.outputs.version }}
+          Build: ${{ steps.version.outputs.build_number }}"
 
       - name: Bersihkan keystore
         if: always()
