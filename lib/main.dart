@@ -331,6 +331,10 @@ class _HomeState extends State<Home> {
   int tab = 0;
   bool saving = false;
   bool syncing = false;
+  bool checkingUpdate = false;
+  bool downloadingUpdate = false;
+  double updateProgress = 0;
+  String updateStatus = '';
 
   String get dateLabel {
     const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
