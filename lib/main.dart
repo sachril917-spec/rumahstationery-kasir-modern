@@ -1709,19 +1709,48 @@ if (checkingUpdate || downloadingUpdate || updateStatus.isNotEmpty) ...[
         ]),
       ]),
     ),
-    body: SafeArea(child: IndexedStack(index: tab, children: [
-      cashierPage(), productPage(), memberPage(), transactionPage(), adminPage(),
-    ])),
+    body: SafeArea(
+  child: IndexedStack(
+    index: tab,
+    children: [
+      cashierPage(),
+      productPage(),
+      memberPage(),
+      transactionPage(),
+      incomePage(),
+      adminPage(),
+    ],
+  ),
+),
     bottomNavigationBar: NavigationBar(
       selectedIndex: tab,
       onDestinationSelected: (v) => setState(() => tab = v),
       destinations: const [
-        NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'Kasir'),
-        NavigationDestination(icon: Icon(Icons.inventory_2), label: 'Barang'),
-        NavigationDestination(icon: Icon(Icons.people), label: 'Member'),
-        NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Transaksi'),
-        NavigationDestination(icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-      ],
+  NavigationDestination(
+    icon: Icon(Icons.point_of_sale),
+    label: 'Kasir',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.inventory_2),
+    label: 'Barang',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.people),
+    label: 'Member',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.receipt_long),
+    label: 'Transaksi',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.account_balance_wallet),
+    label: 'Pendapatan',
+  ),
+  NavigationDestination(
+    icon: Icon(Icons.admin_panel_settings),
+    label: 'Admin',
+  ),
+],
     ),
   );
 }
