@@ -500,6 +500,17 @@ class _HomeState extends State<Home> {
   int tab = 0;
   bool saving = false;
   bool syncing = false;
+  DateTime selectedIncomeDate = DateTime.now();
+
+List<Map<String, Object?>> expenseRows = [];
+
+final expenseDescription = TextEditingController();
+final expenseAmount = TextEditingController();
+
+bool loadingIncome = false;
+
+int dailySalesTotal = 0;
+int dailyExpenseTotal = 0;
   bool checkingUpdate = false;
   bool downloadingUpdate = false;
   double updateProgress = 0;
@@ -551,6 +562,7 @@ class _HomeState extends State<Home> {
       search, code, name, cost, price, middlePrice, qty, stock,
       cashier, branch, memberCode, memberName, phone, discount,
       level, txnDiscount, cash,
+expenseDescription, expenseAmount,
     ]) {
       controller.dispose();
     }
@@ -670,6 +682,178 @@ class _HomeState extends State<Home> {
           ],
         ),
       ) ?? false;
+String formatDate(DateTime d) {
+  return '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+}
+
+Future<void> refreshIncome() async {
+  if (loadingIncome) return;
+
+  setState(() => loadingIncome = true);
+
+  try {
+    final date = formatDate(selectedIncomeDate);
+    final db = KasirDB.instance;
+
+    final rows = await db.expenses(date);
+    final sales = await db.dailySales(date);
+    final expensesTotal = await db.dailyExpenses(date);
+
+    if (!mounted) return;
+
+    setState(() {
+      expenseRows = rows;
+      dailySalesTotal = sales;
+      dailyExpenseTotal = expensesTotal;
+    });
+  } catch (e) {
+    msg('Gagal memuat pendapatan: $e');
+  } finally {
+    if (mounted) setState(() => loadingIncome = false);
+  }
+}
+
+Future<void> showExpenseForm({
+  Map<String, Object?>? expense,
+}) async {
+  expenseDescription.text =
+      expense == null ? '' : '${expense['description']}';
+
+  expenseAmount.text =
+      expense == null ? '' : '${expense['amount']}';
+
+  final formKey = GlobalKey<FormState>();
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(
+        expense == null ? 'Tambah Pengeluaran' : 'Edit Pengeluaran',
+      ),
+      content: Form(
+        key: formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: expenseDescription,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Jenis pengeluaran',
+                hintText: 'Contoh: Beli bensin',
+              ),
+              validator: (v) =>
+                  v == null || v.trim().isEmpty
+                      ? 'Jenis pengeluaran wajib diisi'
+                      : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: expenseAmount,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Nominal (Rp)',
+                hintText: 'Contoh: 50000',
+              ),
+              validator: (v) {
+                final amount = int.tryParse(v ?? '');
+                if (amount == null || amount <= 0) {
+                  return 'Masukkan nominal yang benar';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            if (!formKey.currentState!.validate()) return;
+
+            final amount = int.parse(expenseAmount.text.trim());
+
+            try {
+              if (expense == null) {
+                await KasirDB.instance.addExpense(
+                  branch: branch.text.trim().isEmpty
+                      ? 'Rumah Stationery'
+                      : branch.text.trim(),
+                  date: formatDate(selectedIncomeDate),
+                  description: expenseDescription.text,
+                  amount: amount,
+                );
+              } else {
+                await KasirDB.instance.updateExpense(
+                  id: '${expense['id']}',
+                  description: expenseDescription.text,
+                  amount: amount,
+                );
+              }
+
+              if (ctx.mounted) Navigator.pop(ctx);
+
+              await refreshIncome();
+
+              if (apiKey.isNotEmpty) {
+                try {
+                  await KasirDB.instance.syncExpenses(apiKey);
+                  await refreshIncome();
+                  if (mounted) {
+                    msg('Pengeluaran berhasil disimpan dan disinkronkan.');
+                  }
+                } catch (_) {
+                  if (mounted) {
+                    msg('Tersimpan offline. Menunggu sinkronisasi.');
+                  }
+                }
+              } else {
+                msg('Pengeluaran tersimpan secara lokal.');
+              }
+            } catch (e) {
+              msg('Gagal menyimpan pengeluaran: $e');
+            }
+          },
+          child: const Text('Simpan'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> removeExpense(Map<String, Object?> expense) async {
+  final yes = await confirm(
+    'Hapus pengeluaran?',
+    'Hapus ${expense['description']} sebesar ${money(expense['amount'] as int)}?',
+  );
+
+  if (!yes) return;
+
+  try {
+    await KasirDB.instance.deleteExpense('${expense['id']}');
+    await refreshIncome();
+
+    if (apiKey.isNotEmpty) {
+      try {
+        await KasirDB.instance.syncExpenses(apiKey);
+        await refreshIncome();
+        msg('Pengeluaran berhasil dihapus dan disinkronkan.');
+      } catch (_) {
+        msg('Penghapusan tersimpan. Menunggu sinkronisasi.');
+      }
+    } else {
+      msg('Pengeluaran dihapus secara lokal.');
+    }
+  } catch (e) {
+    msg('Gagal menghapus pengeluaran: $e');
+  }
+}
 
   Future<void> saveProduct() async {
     final c = int.tryParse(cost.text);
