@@ -864,7 +864,9 @@ class _HomeState extends State<Home> {
     ...ps.map((item) => Card(child: ListTile(
       title: Text('${item['name']}'),
       subtitle: Text('${item['code']} • Eceran ${money(item['price'] as int)} • Stok ${item['stock']}'),
-      trailing: Wrap(mainAxisSize: MainAxisSize.min, children: [
+      trailing: Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
         IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit, color: Colors.blue),
             onPressed: () => editProduct(item)),
         IconButton(tooltip: 'Hapus', icon: const Icon(Icons.delete, color: Colors.red),
