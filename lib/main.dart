@@ -55,6 +55,17 @@ class KasirDB {
           item_discount INTEGER NOT NULL DEFAULT 0, transaction_discount INTEGER NOT NULL DEFAULT 0,
           total INTEGER NOT NULL, payload TEXT NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'pending')''');
+await db.execute('''CREATE TABLE expenses(
+  id TEXT PRIMARY KEY,
+  branch TEXT NOT NULL,
+  expense_date TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  sync_status TEXT NOT NULL DEFAULT 'pending'
+)''');
         await _seed(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
