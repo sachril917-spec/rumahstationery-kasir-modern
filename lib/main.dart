@@ -980,19 +980,32 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
   }
 
   Future<void> syncTransactions() async {
-    if (apiKey.isEmpty) { msg('API_KEY belum tersedia. Build APK dengan secret API_KEY.'); return; }
-    if (syncing) return;
-    setState(() => syncing = true);
-    try {
-      final count = await KasirDB.instance.sync(apiKey);
-      await refreshAll();
-      msg('Sinkronisasi berhasil: $count transaksi');
-    } catch (e) {
-      msg('Sinkronisasi gagal: $e');
-    } finally {
-      if (mounted) setState(() => syncing = false);
-    }
+  if (apiKey.isEmpty) {
+    msg('API_KEY belum tersedia.');
+    return;
   }
+
+  if (syncing) return;
+
+  setState(() => syncing = true);
+
+  try {
+    final salesCount = await KasirDB.instance.sync(apiKey);
+    final expenseCount = await KasirDB.instance.syncExpenses(apiKey);
+
+    await refreshAll();
+    await refreshIncome();
+
+    msg(
+      'Sinkronisasi berhasil: '
+      '$salesCount transaksi dan $expenseCount pengeluaran.',
+    );
+  } catch (e) {
+    msg('Sinkronisasi gagal: $e');
+  } finally {
+    if (mounted) setState(() => syncing = false);
+  }
+}
 
   
 int compareVersions(String current, String latest) {
