@@ -298,7 +298,42 @@ void dispose() {
     setState(()=>{memberCode.text='${selected['code']??''}',memberName.text='${selected['name']??''}'});
   }
   @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('RUMAH STATIONERY'),backgroundColor:const Color(0xFF102A56),foregroundColor:Colors.white),
+    appBar: AppBar(
+  toolbarHeight: 88,
+  title: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text(
+        'RUMAH STATIONERY',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 5),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              _dateLabel,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          Text(
+            _timeLabel,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ],
+  ),
+  backgroundColor: const Color(0xFF102A56),
+  foregroundColor: Colors.white,
+),
     body:SafeArea(child:IndexedStack(index:tab,children:[cashierPage(),productPage(),memberPage(),transactionPage(),adminPage()])),
     bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const[
       NavigationDestination(icon:Icon(Icons.point_of_sale),label:'Kasir'),NavigationDestination(icon:Icon(Icons.inventory_2),label:'Barang'),
