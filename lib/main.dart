@@ -1468,13 +1468,24 @@ Future<void> showProductDetail(Map<String, Object?> item) async {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(
-            child: Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-              color: Colors.blueGrey,
-            ),
+          Center(
+  child: (item['image_key'] ?? '').toString().isNotEmpty &&
+          File('${item['image_key']}').existsSync()
+      ? ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            File('${item['image_key']}'),
+            width: 180,
+            height: 180,
+            fit: BoxFit.contain,
           ),
+        )
+      : const Icon(
+          Icons.inventory_2_outlined,
+          size: 64,
+          color: Colors.blueGrey,
+        ),
+),
           const SizedBox(height: 12),
           Text('Kode: ${item['code']}'),
           Text('Barcode: ${item['barcode'] ?? '-'}'),
