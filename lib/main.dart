@@ -977,7 +977,8 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
 );
       }
       editingProductId = null;
-      code.clear();
+selectedProductImagePath = null;
+code.clear();
 barcode.clear();
 category.clear();
 name.clear();
