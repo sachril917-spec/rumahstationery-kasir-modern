@@ -935,7 +935,10 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
     }
     try {
       if (editingProductId == null) {
-        await KasirDB.instance.addProduct(code.text, name.text, c, pr, mp, q, s);
+        await KasirDB.instance.addProduct(
+  code.text, name.text, c, pr, mp, q, s,
+  barcode.text, category.text,
+);
       } else {
         await KasirDB.instance.updateProduct(editingProductId!, code.text,
             name.text, c, pr, mp, q, s);
