@@ -1633,7 +1633,8 @@ TextField(controller: name, decoration: const InputDecoration(labelText: 'Nama b
       if (editingProductId != null) ...[
         const SizedBox(width: 8),
         OutlinedButton(onPressed: () => setState(() {
-          editingProductId = null; code.clear(); barcode.clear(); category.clear(); name.clear(); cost.text = '0';
+          editingProductId = null;
+selectedProductImagePath = null; code.clear(); barcode.clear(); category.clear(); name.clear(); cost.text = '0';
           price.clear(); middlePrice.clear(); qty.text = '10'; stock.clear();
         }), child: const Text('Batal')),
       ],
