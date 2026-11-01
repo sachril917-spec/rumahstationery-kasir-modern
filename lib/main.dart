@@ -35,13 +35,18 @@ class KasirDB {
   Future<void> init() async {
     db = await openDatabase(
       p.join(await getDatabasesPath(), 'rumah_stationery.db'),
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE products(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
           cost_price INTEGER NOT NULL DEFAULT 0, price INTEGER NOT NULL,
           middle_price INTEGER NOT NULL DEFAULT 0, middle_qty INTEGER NOT NULL DEFAULT 1,
-          member_price INTEGER NOT NULL DEFAULT 0, stock INTEGER NOT NULL)''');
+          member_price INTEGER NOT NULL DEFAULT 0,
+stock INTEGER NOT NULL,
+barcode TEXT NOT NULL DEFAULT '',
+category TEXT NOT NULL DEFAULT '',
+image_key TEXT NOT NULL DEFAULT ''
+)''');
         await db.execute('''CREATE TABLE members(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
           phone TEXT NOT NULL DEFAULT '', price_level TEXT NOT NULL DEFAULT 'Retail',
@@ -110,6 +115,17 @@ await db.execute('''CREATE TABLE expenses(
     sync_status TEXT NOT NULL DEFAULT 'pending'
   )''');
 }
+if (oldVersion < 6) {
+  await db.execute(
+    "ALTER TABLE products ADD COLUMN barcode TEXT NOT NULL DEFAULT ''"
+  );
+  await db.execute(
+    "ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT ''"
+  );
+  await db.execute(
+    "ALTER TABLE products ADD COLUMN image_key TEXT NOT NULL DEFAULT ''"
+  );
+}
       },
     );
   }
@@ -133,10 +149,17 @@ await db.execute('''CREATE TABLE expenses(
   }
 
   Future<List<Map<String, Object?>>> products(String q) => q.trim().isEmpty
-      ? db.query('products', orderBy: 'name COLLATE NOCASE')
-      : db.query('products', where: 'name LIKE ? OR code LIKE ?',
-          whereArgs: ['%${q.trim()}%', '%${q.trim()}%'],
-          orderBy: 'name COLLATE NOCASE');
+    ? db.query('products', orderBy: 'name COLLATE NOCASE')
+    : db.query(
+        'products',
+        where: 'name LIKE ? OR code LIKE ? OR barcode LIKE ?',
+        whereArgs: [
+          '%${q.trim()}%',
+          '%${q.trim()}%',
+          '%${q.trim()}%',
+        ],
+        orderBy: 'name COLLATE NOCASE',
+      );
 
   Future<List<Map<String, Object?>>> members() =>
       db.query('members', orderBy: 'name COLLATE NOCASE');
