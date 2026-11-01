@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -177,6 +178,7 @@ if (oldVersion < 6) {
   int stock,
   String barcode,
   String category,
+  String imageKey,
 ) async {
   if (middleQty < 1) {
     throw Exception('Isi satuan tengah minimal 1');
@@ -194,7 +196,7 @@ if (oldVersion < 6) {
     'stock': stock,
     'barcode': barcode.trim(),
     'category': category.trim(),
-    'image_key': '',
+    'image_key': imageKey,
   });
 }
 
@@ -209,6 +211,7 @@ if (oldVersion < 6) {
   int stock,
   String barcode,
   String category,
+  String imageKey,
 ) async {
   if (middleQty < 1) {
     throw Exception('Isi satuan tengah minimal 1');
@@ -225,6 +228,7 @@ if (oldVersion < 6) {
     'stock': stock,
     'barcode': barcode.trim(),
     'category': category.trim(),
+    'image_key': imageKey,
   }, where: 'id = ?', whereArgs: [id]);
 }
 
@@ -540,6 +544,8 @@ bool catalogMode = false;
 String selectedCategory = 'Semua';
 String productSort = 'Nama A-Z';
 
+final ImagePicker _imagePicker = ImagePicker();
+String? selectedProductImagePath;
 final code = TextEditingController();
 final barcode = TextEditingController();
 final category = TextEditingController();
@@ -973,6 +979,40 @@ price.clear();
     }
   }
 
+  Future<void> pickProductImage() async {
+  try {
+    final XFile? picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (picked == null) return;
+
+    final dir = await getApplicationDocumentsDirectory();
+    final imageDir = Directory(
+      p.join(dir.path, 'product_images'),
+    );
+
+    await imageDir.create(recursive: true);
+
+    final fileName =
+        '${DateTime.now().microsecondsSinceEpoch}${p.extension(picked.path)}';
+
+    final savedFile = await File(picked.path).copy(
+      p.join(imageDir.path, fileName),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      selectedProductImagePath = savedFile.path;
+    });
+
+    msg('Foto produk berhasil dipilih');
+  } catch (e) {
+    msg('Gagal memilih foto: $e');
+  }
+}
   void editProduct(Map<String, Object?> item) {
     setState(() {
       editingProductId = '${item['id']}';
