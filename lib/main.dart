@@ -995,9 +995,11 @@ price.clear();
   Future<void> pickProductImage() async {
   try {
     final XFile? picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
+  source: ImageSource.gallery,
+  imageQuality: 75,
+  maxWidth: 500,
+  maxHeight: 500,
+);
 
     if (picked == null) return;
 
