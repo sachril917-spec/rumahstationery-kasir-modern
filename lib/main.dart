@@ -947,8 +947,16 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
     try {
       if (editingProductId == null) {
         await KasirDB.instance.addProduct(
-  code.text, name.text, c, pr, mp, q, s,
-  barcode.text, category.text,
+  code.text,
+  name.text,
+  c,
+  pr,
+  mp,
+  q,
+  s,
+  barcode.text,
+  category.text,
+  selectedProductImagePath ?? '',
 );
       } else {
         await KasirDB.instance.updateProduct(
@@ -962,6 +970,10 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
   s,
   barcode.text,
   category.text,
+  selectedProductImagePath ??
+      (ps.firstWhere(
+        (item) => item['id'] == editingProductId,
+      )['image_key'] ?? '').toString(),
 );
       }
       editingProductId = null;
@@ -1016,6 +1028,8 @@ price.clear();
   void editProduct(Map<String, Object?> item) {
     setState(() {
       editingProductId = '${item['id']}';
+      selectedProductImagePath =
+    (item['image_key'] ?? '').toString();
       code.text = '${item['code']}';
 barcode.text = '${item['barcode'] ?? ''}';
 category.text = '${item['category'] ?? ''}';
@@ -1525,7 +1539,53 @@ List<Map<String, Object?>> get filteredProducts {
   Widget productPage() => ListView(padding: const EdgeInsets.all(16), children: [
     titleSection(editingProductId == null ? 'Tambah barang' : 'Edit barang',
         subtitle: 'Masukkan harga, isi satuan tengah, dan stok'),
-    TextField(controller: code, decoration: const InputDecoration(labelText: 'Kode barang')),
+
+const SizedBox(height: 12),
+
+Center(
+  child: Column(
+    children: [
+      if (selectedProductImagePath != null &&
+          selectedProductImagePath!.isNotEmpty &&
+          File(selectedProductImagePath!).existsSync())
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(
+            File(selectedProductImagePath!),
+            width: 140,
+            height: 140,
+            fit: BoxFit.cover,
+          ),
+        )
+      else
+        Container(
+          width: 140,
+          height: 140,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.image,
+            size: 55,
+            color: Colors.grey,
+          ),
+        ),
+
+      const SizedBox(height: 8),
+
+      ElevatedButton.icon(
+        onPressed: pickProductImage,
+        icon: const Icon(Icons.photo_library),
+        label: const Text('Pilih Foto Produk'),
+      ),
+    ],
+  ),
+),
+
+const SizedBox(height: 12),
+
+TextField(controller: code, decoration: const InputDecoration(labelText: 'Kode barang')),
 const SizedBox(height: 8),
 TextField(
   controller: barcode,
