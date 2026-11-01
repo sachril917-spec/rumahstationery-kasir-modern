@@ -956,7 +956,10 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
   void editProduct(Map<String, Object?> item) {
     setState(() {
       editingProductId = '${item['id']}';
-      code.text = '${item['code']}'; name.text = '${item['name']}';
+      code.text = '${item['code']}';
+barcode.text = '${item['barcode'] ?? ''}';
+category.text = '${item['category'] ?? ''}';
+name.text = '${item['name']}';
       cost.text = '${item['cost_price'] ?? 0}'; price.text = '${item['price']}';
       middlePrice.text = '${item['middle_price'] ?? 0}';
       qty.text = '${item['middle_qty'] ?? 1}'; stock.text = '${item['stock']}';
@@ -1382,13 +1385,67 @@ Future<void> checkUpdate() async {
       ),
     ]);
   });
+Future<void> showProductDetail(Map<String, Object?> item) async {
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('${item['name']}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Center(
+            child: Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+              color: Colors.blueGrey,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Kode: ${item['code']}'),
+          Text('Barcode: ${item['barcode'] ?? '-'}'),
+          Text('Kategori: ${item['category'] ?? '-'}'),
+          Text('Harga modal: ${money(item['cost_price'] as int)}'),
+          Text('Harga eceran: ${money(item['price'] as int)}'),
+          Text('Harga grosir: ${money(item['middle_price'] as int)}'),
+          Text('Minimal grosir: ${item['middle_qty']} pcs'),
+          Text('Harga member: ${money(item['member_price'] as int)}'),
+          Text('Stok: ${item['stock']} pcs'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Tutup'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            editProduct(item);
+          },
+          child: const Text('Edit barang'),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget productPage() => ListView(padding: const EdgeInsets.all(16), children: [
     titleSection(editingProductId == null ? 'Tambah barang' : 'Edit barang',
         subtitle: 'Masukkan harga, isi satuan tengah, dan stok'),
     TextField(controller: code, decoration: const InputDecoration(labelText: 'Kode barang')),
-    const SizedBox(height: 8),
-    TextField(controller: name, decoration: const InputDecoration(labelText: 'Nama barang')),
+const SizedBox(height: 8),
+TextField(
+  controller: barcode,
+  decoration: const InputDecoration(labelText: 'Barcode / ISBN (opsional)'),
+),
+const SizedBox(height: 8),
+TextField(
+  controller: category,
+  decoration: const InputDecoration(labelText: 'Kategori barang (opsional)'),
+),
+const SizedBox(height: 8),
+TextField(controller: name, decoration: const InputDecoration(labelText: 'Nama barang')),
     const SizedBox(height: 8),
     TextField(controller: cost, keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Harga modal (Rp)')),
@@ -1421,7 +1478,14 @@ Future<void> checkUpdate() async {
     titleSection('Daftar barang', subtitle: '${ps.length} barang tersimpan di perangkat'),
     ...ps.map((item) => Card(child: ListTile(
       title: Text('${item['name']}'),
-      subtitle: Text('${item['code']} • Eceran ${money(item['price'] as int)} • Stok ${item['stock']}'),
+      subtitle: Text(
+  '${item['code']}'
+  ' • Barcode: ${(item['barcode'] ?? '').toString().isEmpty ? '-' : item['barcode']}'
+  ' • Kategori: ${(item['category'] ?? '').toString().isEmpty ? '-' : item['category']}'
+  ' • Eceran: ${money(item['price'] as int)}'
+  ' • Stok: ${item['stock']}',
+),
+onTap: () => showProductDetail(item),
       trailing: Row(
   mainAxisSize: MainAxisSize.min,
   children: [
