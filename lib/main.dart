@@ -495,8 +495,10 @@ class _HomeState extends State<Home> {
   Timer? _searchTimer;
 
   final search = TextEditingController();
-  final code = TextEditingController();
-  final name = TextEditingController();
+final code = TextEditingController();
+final barcode = TextEditingController();
+final category = TextEditingController();
+final name = TextEditingController();
   final cost = TextEditingController(text: '0');
   final price = TextEditingController();
   final middlePrice = TextEditingController();
