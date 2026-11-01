@@ -167,26 +167,66 @@ if (oldVersion < 6) {
   Future<List<Map<String, Object?>>> transactions() =>
       db.query('transactions', orderBy: 'time DESC');
 
-  Future<void> addProduct(String code, String name, int cost, int price,
-      int middlePrice, int middleQty, int stock) async {
-    if (middleQty < 1) throw Exception('Isi satuan tengah minimal 1');
-    await db.insert('products', {
-      'id': uuid.v4(), 'code': code.trim(), 'name': name.trim(),
-      'cost_price': cost, 'price': price, 'middle_price': middlePrice,
-      'middle_qty': middleQty, 'member_price': middlePrice ~/ middleQty,
-      'stock': stock,
-    });
+  Future<void> addProduct(
+  String code,
+  String name,
+  int cost,
+  int price,
+  int middlePrice,
+  int middleQty,
+  int stock,
+  String barcode,
+  String category,
+) async {
+  if (middleQty < 1) {
+    throw Exception('Isi satuan tengah minimal 1');
   }
 
-  Future<void> updateProduct(String id, String code, String name, int cost,
-      int price, int middlePrice, int middleQty, int stock) async {
-    if (middleQty < 1) throw Exception('Isi satuan tengah minimal 1');
-    await db.update('products', {
-      'code': code.trim(), 'name': name.trim(), 'cost_price': cost,
-      'price': price, 'middle_price': middlePrice, 'middle_qty': middleQty,
-      'member_price': middlePrice ~/ middleQty, 'stock': stock,
-    }, where: 'id = ?', whereArgs: [id]);
+  await db.insert('products', {
+    'id': uuid.v4(),
+    'code': code.trim(),
+    'name': name.trim(),
+    'cost_price': cost,
+    'price': price,
+    'middle_price': middlePrice,
+    'middle_qty': middleQty,
+    'member_price': middlePrice ~/ middleQty,
+    'stock': stock,
+    'barcode': barcode.trim(),
+    'category': category.trim(),
+    'image_key': '',
+  });
+}
+
+  Future<void> updateProduct(
+  String id,
+  String code,
+  String name,
+  int cost,
+  int price,
+  int middlePrice,
+  int middleQty,
+  int stock,
+  String barcode,
+  String category,
+) async {
+  if (middleQty < 1) {
+    throw Exception('Isi satuan tengah minimal 1');
   }
+
+  await db.update('products', {
+    'code': code.trim(),
+    'name': name.trim(),
+    'cost_price': cost,
+    'price': price,
+    'middle_price': middlePrice,
+    'middle_qty': middleQty,
+    'member_price': middlePrice ~/ middleQty,
+    'stock': stock,
+    'barcode': barcode.trim(),
+    'category': category.trim(),
+  }, where: 'id = ?', whereArgs: [id]);
+}
 
   Future<void> deleteProduct(String id) async {
     await db.delete('products', where: 'id = ?', whereArgs: [id]);
