@@ -2,30 +2,44 @@
 name: Build Rumah Stationery Kasir Windows
 
 on:
-  workflow_dispatch:
-  push:
-    paths:
-      - 'lib/**'
-      - 'pubspec.yaml'
-      - 'windows/**'
-      - '.github/workflows/build-windows.yml'
+  workflow_run:
+    workflows:
+      - Build Rumah Stationery Kasir APK
+    types:
+      - completed
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 jobs:
   build-windows:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: windows-latest
 
     steps:
-      - name: Ambil source code
+      - name: Ambil source code yang sama dengan build Android
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Siapkan Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      - name: Ambil versi rilis Android terbaru
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = gh release list --repo "$env:GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName'
+          if (-not $tag) { throw "Tag rilis Android tidak ditemukan." }
+          $version = $tag.TrimStart('v')
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Aktifkan platform Windows
         run: flutter create --platforms=windows .
@@ -34,19 +48,27 @@ jobs:
         run: flutter pub get
 
       - name: Build aplikasi Windows
-        run: flutter build windows --release --dart-define=API_KEY=${{ secrets.API_KEY }}
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: flutter build windows --release --build-name=${{ steps.version.outputs.version }} --build-number=${{ github.run_number }} --dart-define=API_KEY="$env:API_KEY"
 
-      - name: Paketkan aplikasi
+      - name: Paketkan aplikasi Windows
         shell: pwsh
         run: |
-          Compress-Archive `
-            -Path "build/windows/x64/runner/Release/*" `
-            -DestinationPath "rumah-stationery-kasir-windows.zip" `
-            -Force
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "rumah-stationery-kasir-windows.zip" -Force
+          if (-not (Test-Path "rumah-stationery-kasir-windows.zip")) { throw "Paket Windows tidak berhasil dibuat." }
 
-      - name: Simpan hasil build
+      - name: Simpan hasil build Windows
         uses: actions/upload-artifact@v4
         with:
           name: rumah-stationery-kasir-windows
           path: rumah-stationery-kasir-windows.zip
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Masukkan ZIP Windows ke GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.version.outputs.tag }}" "rumah-stationery-kasir-windows.zip" --repo "$env:GITHUB_REPOSITORY" --clobber
