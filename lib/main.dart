@@ -940,11 +940,26 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
   barcode.text, category.text,
 );
       } else {
-        await KasirDB.instance.updateProduct(editingProductId!, code.text,
-            name.text, c, pr, mp, q, s);
+        await KasirDB.instance.updateProduct(
+  editingProductId!,
+  code.text,
+  name.text,
+  c,
+  pr,
+  mp,
+  q,
+  s,
+  barcode.text,
+  category.text,
+);
       }
       editingProductId = null;
-      code.clear(); name.clear(); cost.text = '0'; price.clear();
+      code.clear();
+barcode.clear();
+category.clear();
+name.clear();
+cost.text = '0';
+price.clear();
       middlePrice.clear(); qty.text = '10'; stock.clear();
       await refreshAll();
       msg('Barang berhasil disimpan');
