@@ -1776,15 +1776,26 @@ if (catalogMode)
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
-                    child: Center(
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 48,
-                        color: Colors.blueGrey,
-                      ),
-                    ),
-                  ),
+                  Expanded(
+  child: Center(
+    child: (item['image_key'] ?? '').toString().isNotEmpty &&
+            File('${item['image_key']}').existsSync()
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              File('${item['image_key']}'),
+              width: double.infinity,
+              height: double.infinity,
+              fit: BoxFit.contain,
+            ),
+          )
+        : const Icon(
+            Icons.inventory_2_outlined,
+            size: 48,
+            color: Colors.blueGrey,
+          ),
+  ),
+),
                   Text(
                     '${item['name']}',
                     maxLines: 2,
