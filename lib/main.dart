@@ -1422,43 +1422,45 @@ Widget productPhoto(
                 itemCount: ps.length,
                 itemBuilder: (context, index) {
                   final item = ps[index];
-                  return Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => addProductToCart(item),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        
-child: Column(
-  mainAxisAlignment: MainAxisAlignment.center,
-  children: [
-    productPhoto(item, height: 65),
-    const SizedBox(height: 4),
-    Text(
-      '${item['name']}',
-      textAlign: TextAlign.center,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontWeight: FontWeight.w600),
-    ),
-    const SizedBox(height: 4),
-    Text(
-      money(item['price'] as int),
-      style: const TextStyle(
-        color: Color(0xFF1769E0),
-        fontWeight: FontWeight.bold,
+                  
+return Card(
+  clipBehavior: Clip.antiAlias,
+  child: InkWell(
+    onTap: () => addProductToCart(item),
+    child: Padding(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (Platform.isWindows)
+            productPhoto(item, height: 65),
+          const SizedBox(height: 4),
+          Text(
+            '${item['name']}',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            money(item['price'] as int),
+            style: const TextStyle(
+              color: Color(0xFF1769E0),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            'Stok ${item['stock']}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          const Icon(Icons.add_circle_outline, size: 18),
+        ],
       ),
     ),
-    Text(
-      'Stok ${item['stock']}',
-      style: const TextStyle(fontSize: 12),
-    ),
-    const Icon(Icons.add_circle_outline, size: 18),
-  ],
-),
+  ),
+);
 
-                    ),
-                  );
                 },
               ),
       ),
