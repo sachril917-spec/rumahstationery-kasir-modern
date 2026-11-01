@@ -535,6 +535,11 @@ class _HomeState extends State<Home> {
   Timer? _searchTimer;
 
   final search = TextEditingController();
+
+bool catalogMode = false;
+String selectedCategory = 'Semua';
+String productSort = 'Nama A-Z';
+
 final code = TextEditingController();
 final barcode = TextEditingController();
 final category = TextEditingController();
@@ -1444,6 +1449,38 @@ Future<void> showProductDetail(Map<String, Object?> item) async {
     ),
   );
 }
+List<Map<String, Object?>> get filteredProducts {
+  final result = ps.where((item) {
+    return selectedCategory == 'Semua' ||
+        (item['category'] ?? '').toString().trim() ==
+            selectedCategory;
+  }).toList();
+
+  result.sort((a, b) {
+    switch (productSort) {
+      case 'Nama Z-A':
+        return b['name'].toString().compareTo(
+            a['name'].toString());
+      case 'Harga termurah':
+        return (a['price'] as int).compareTo(
+            b['price'] as int);
+      case 'Harga termahal':
+        return (b['price'] as int).compareTo(
+            a['price'] as int);
+      case 'Stok terbanyak':
+        return (b['stock'] as int).compareTo(
+            a['stock'] as int);
+      case 'Stok tersedikit':
+        return (a['stock'] as int).compareTo(
+            b['stock'] as int);
+      default:
+        return a['name'].toString().compareTo(
+            b['name'].toString());
+    }
+  });
+
+  return result;
+}
 
   Widget productPage() => ListView(padding: const EdgeInsets.all(16), children: [
     titleSection(editingProductId == null ? 'Tambah barang' : 'Edit barang',
@@ -1490,27 +1527,204 @@ TextField(controller: name, decoration: const InputDecoration(labelText: 'Nama b
       ],
     ]),
     const Divider(height: 28),
-    titleSection('Daftar barang', subtitle: '${ps.length} barang tersimpan di perangkat'),
-    ...ps.map((item) => Card(child: ListTile(
+
+titleSection(
+  'Katalog barang',
+  subtitle: 'Pilih tampilan dan atur daftar produk',
+),
+
+Row(
+  children: [
+    Expanded(
+      child: SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(
+            value: false,
+            label: Text('Daftar'),
+            icon: Icon(Icons.list),
+          ),
+          ButtonSegment(
+            value: true,
+            label: Text('Katalog'),
+            icon: Icon(Icons.grid_view),
+          ),
+        ],
+        selected: {catalogMode},
+        onSelectionChanged: (value) {
+          setState(() {
+            catalogMode = value.first;
+          });
+        },
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 10),
+
+DropdownButtonFormField<String>(
+  value: selectedCategory,
+  decoration: const InputDecoration(
+    labelText: 'Filter kategori',
+    border: OutlineInputBorder(),
+  ),
+  items: [
+    'Semua',
+    ...ps.map((item) =>
+      (item['category'] ?? '').toString().trim()
+    ).where((v) => v.isNotEmpty).toSet().toList()..sort(),
+  ].map((v) => DropdownMenuItem(
+    value: v,
+    child: Text(v),
+  )).toList(),
+  onChanged: (value) {
+    if (value != null) {
+      setState(() {
+        selectedCategory = value;
+      });
+    }
+  },
+),
+
+const SizedBox(height: 10),
+
+DropdownButtonFormField<String>(
+  value: productSort,
+  decoration: const InputDecoration(
+    labelText: 'Urutkan barang',
+    border: OutlineInputBorder(),
+  ),
+  items: const [
+    'Nama A-Z',
+    'Nama Z-A',
+    'Harga termurah',
+    'Harga termahal',
+    'Stok terbanyak',
+    'Stok tersedikit',
+  ].map((v) => DropdownMenuItem(
+    value: v,
+    child: Text(v),
+  )).toList(),
+  onChanged: (value) {
+    if (value != null) {
+      setState(() {
+        productSort = value;
+      });
+    }
+  },
+),
+
+const SizedBox(height: 12),
+
+
+titleSection(
+  'Daftar barang',
+  subtitle: '${filteredProducts.length} barang ditampilkan',
+),
+
+if (!catalogMode)
+  ...filteredProducts.map((item) => Card(
+    child: ListTile(
       title: Text('${item['name']}'),
       subtitle: Text(
-  '${item['code']}'
-  ' • Barcode: ${(item['barcode'] ?? '').toString().isEmpty ? '-' : item['barcode']}'
-  ' • Kategori: ${(item['category'] ?? '').toString().isEmpty ? '-' : item['category']}'
-  ' • Eceran: ${money(item['price'] as int)}'
-  ' • Stok: ${item['stock']}',
-),
-onTap: () => showProductDetail(item),
+        '${item['code']}'
+        ' • Barcode: ${item['barcode'] ?? '-'}'
+        ' • Kategori: ${item['category'] ?? '-'}'
+        ' • Eceran: ${money(item['price'] as int)}'
+        ' • Stok: ${item['stock']}',
+      ),
+      onTap: () => showProductDetail(item),
       trailing: Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-        IconButton(tooltip: 'Edit', icon: const Icon(Icons.edit, color: Colors.blue),
-            onPressed: () => editProduct(item)),
-        IconButton(tooltip: 'Hapus', icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => deleteProduct(item)),
-      ]),
-    ))),
-  ]);
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Edit',
+            icon: const Icon(Icons.edit, color: Colors.blue),
+            onPressed: () => editProduct(item),
+          ),
+          IconButton(
+            tooltip: 'Hapus',
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => deleteProduct(item),
+          ),
+        ],
+      ),
+    ),
+  )),
+
+if (catalogMode)
+  SizedBox(
+    height: ((filteredProducts.length + 1) ~/ 2) * 220.0,
+    child: GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: filteredProducts.length,
+      gridDelegate:
+          const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.85,
+      ),
+      itemBuilder: (context, index) {
+        final item = filteredProducts[index];
+
+        return Card(
+          child: InkWell(
+            onTap: () => showProductDetail(item),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Expanded(
+                    child: Center(
+                      child: Icon(
+                        Icons.inventory_2_outlined,
+                        size: 48,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${item['name']}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '${item['category'] ?? 'Umum'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(money(item['price'] as int)),
+                  Text('Stok: ${item['stock']}'),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => editProduct(item),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          size: 20,
+                          color: Colors.red,
+                        ),
+                        onPressed: () => deleteProduct(item),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  ),
+]);
 
   Widget memberPage() => ListView(padding: const EdgeInsets.all(16), children: [
     titleSection(editingMemberId == null ? 'Tambah member' : 'Edit member',
