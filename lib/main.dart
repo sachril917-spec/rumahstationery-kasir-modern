@@ -1262,18 +1262,38 @@ Future<void> checkUpdate() async {
       return;
     }
 
-    // Jika ada versi yang lebih baru
-    String? apkUrl;
-    String? apkName;
+    
+    // Pilih paket sesuai perangkat.
+    final isWindows = Platform.isWindows;
+    final expectedExtension = isWindows ? '.zip' : '.apk';
+    final expectedName = isWindows
+        ? 'rumah-stationery-kasir-windows.zip'
+        : 'app-release.apk';
+
+    String? updateUrl;
+    String? updateName;
 
     final assets = data['assets'];
+
     if (assets is List) {
       for (final asset in assets) {
         if (asset is Map &&
-            '${asset['name']}'.toLowerCase().endsWith('.apk')) {
-          apkUrl = asset['browser_download_url']?.toString();
-          apkName = asset['name']?.toString();
+            '${asset['name']}'.toLowerCase() ==
+                expectedName.toLowerCase()) {
+          updateUrl = asset['browser_download_url']?.toString();
+          updateName = asset['name']?.toString();
           break;
+        }
+      }
+
+      if (updateUrl == null) {
+        for (final asset in assets) {
+          if (asset is Map &&
+              '${asset['name']}'.toLowerCase().endsWith(expectedExtension)) {
+            updateUrl = asset['browser_download_url']?.toString();
+            updateName = asset['name']?.toString();
+            break;
+          }
         }
       }
     }
@@ -1287,8 +1307,11 @@ Future<void> checkUpdate() async {
         content: Text(
           'Versi terpasang: $installedVersion\n'
           'Versi terbaru: $latestVersion\n'
-          'File: ${apkName ?? 'APK belum tersedia'}\n\n'
-          'Silakan unduh dan pasang pembaruan.',
+          'Perangkat: ${isWindows ? 'Windows' : 'Android'}\n'
+          'File: ${updateName ?? 'Paket update belum tersedia'}\n\n'
+          '${isWindows
+              ? 'Unduh ZIP, tutup aplikasi, ekstrak, lalu salin isi folder hasil ekstrak ke folder aplikasi Windows.'
+              : 'Unduh APK lalu buka file di HP untuk memasang pembaruan.'}',
         ),
         actions: [
           TextButton(
@@ -1299,7 +1322,7 @@ Future<void> checkUpdate() async {
             onPressed: () async {
               Navigator.pop(ctx);
 
-              final target = apkUrl ?? releaseUrl;
+              final target = updateUrl ?? releaseUrl;
               if (target == null) return;
 
               final uri = Uri.tryParse(target);
@@ -1314,11 +1337,14 @@ Future<void> checkUpdate() async {
                 msg('Tidak bisa membuka link unduhan.');
               }
             },
-            child: Text(apkUrl != null ? 'Unduh Update' : 'Buka Rilis'),
+            child: Text(
+              updateUrl != null ? 'Unduh Update' : 'Buka Rilis',
+            ),
           ),
         ],
       ),
     );
+
   } catch (e) {
     if (mounted) {
       msg('Gagal cek update. Coba lagi. ($e)');
