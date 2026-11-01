@@ -585,7 +585,7 @@ int dailyExpenseTotal = 0;
     _clockTimer?.cancel();
     _searchTimer?.cancel();
     for (final controller in [
-      search, code, name, cost, price, middlePrice, qty, stock,
+      search, code, barcode, category, name, cost, price, middlePrice, qty, stock,
       cashier, branch, memberCode, memberName, phone, discount,
       level, txnDiscount, cash,
 expenseDescription, expenseAmount,
