@@ -2,9 +2,16 @@ name: Build Rumah Stationery Kasir APK
 
 on:
   workflow_dispatch:
-  push:
+    push:
     branches:
       - main
+    paths:
+      - 'lib/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: write
