@@ -13,12 +13,17 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+
+      - name: Create Android project
+        working-directory: admin_app
+        run: flutter create --platforms=android --project-name adl_admin_server .
 
       - name: Install dependencies
         working-directory: admin_app
