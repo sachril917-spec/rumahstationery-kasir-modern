@@ -13,7 +13,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -23,17 +22,27 @@ jobs:
 
       - name: Create Android project
         working-directory: admin_app
-        run: flutter create --platforms=android --project-name adl_admin_server .
+        run: flutter create --platforms=android --org id.adl --project-name admin_server .
+
+      - name: Set app name
+        working-directory: admin_app
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="ADL Admin Server"/' android/app/src/main/AndroidManifest.xml
 
       - name: Install dependencies
         working-directory: admin_app
         run: flutter pub get
 
-      - name: Build APK
+      - name: Build APK for Samsung
         working-directory: admin_app
-        run: flutter build apk --release
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Rename APK
+        run: |
+          mkdir -p output
+          cp admin_app/build/app/outputs/flutter-apk/app-release.apk output/ADL-Admin-Server-v1.0.1.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ADL-Admin-Server-APK
-          path: admin_app/build/app/outputs/flutter-apk/app-release.apk
+          name: ADL-Admin-Server-v1.0.1
+          path: output/ADL-Admin-Server-v1.0.1.apk
