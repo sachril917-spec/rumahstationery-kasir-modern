@@ -63,6 +63,84 @@ export default {
       });
     }
     
+
+    // LAPORAN PENJUALAN UNTUK APK ADMIN
+    if (url.pathname === "/admin/sales" && request.method === "GET") {
+      if (!env.API_KEY || !env.DB_RUMAH_STATIONERY) {
+        return json({
+          success: false,
+          message: "API_KEY atau database belum tersedia."
+        }, 503);
+      }
+
+      if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
+        return json({
+          success: false,
+          message: "Akses Admin ditolak."
+        }, 401);
+      }
+
+      const date = url.searchParams.get("date") || "";
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return json({
+          success: false,
+          message: "Format tanggal harus YYYY-MM-DD."
+        }, 400);
+      }
+
+      try {
+        const db = env.DB_RUMAH_STATIONERY;
+
+        const [summary, branches, transactions] = await Promise.all([
+          db.prepare(`
+            SELECT
+              COUNT(*) AS jumlah_transaksi,
+              COALESCE(SUM(total), 0) AS total_penjualan
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+          `).bind(date).first(),
+
+          db.prepare(`
+            SELECT
+              branch_id,
+              COUNT(*) AS jumlah_transaksi,
+              COALESCE(SUM(total), 0) AS total_penjualan
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+            GROUP BY branch_id
+            ORDER BY total_penjualan DESC
+          `).bind(date).all(),
+
+          db.prepare(`
+            SELECT
+              id, branch_id, created_at,
+              payment, total, payload
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+            ORDER BY created_at DESC
+            LIMIT 500
+          `).bind(date).all()
+        ]);
+
+        return json({
+          success: true,
+          tanggal: date,
+          jumlah_transaksi: Number(summary?.jumlah_transaksi || 0),
+          total_penjualan: Number(summary?.total_penjualan || 0),
+          cabang: branches.results || [],
+          transaksi: transactions.results || []
+        });
+
+      } catch (error) {
+        return json({
+          success: false,
+          message: "Gagal mengambil laporan penjualan.",
+          details: String(error?.message || error)
+        }, 500);
+      }
+    }
+
     if (
       url.pathname !== "/sync/transactions" ||
       request.method !== "POST"
