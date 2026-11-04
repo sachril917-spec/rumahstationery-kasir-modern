@@ -1,0 +1,34 @@
+name: Build APK Admin Server ADL
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'admin_app/**'
+      - '.github/workflows/build-admin-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: admin_app
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: admin_app
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ADL-Admin-Server-APK
+          path: admin_app/build/app/outputs/flutter-apk/app-release.apk
