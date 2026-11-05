@@ -55,45 +55,55 @@ jobs:
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
 
-          s = re.sub(
+          s, n = re.subn(
               r'applicationId\s*=\s*"[^"]+"',
               'applicationId = "id.adl.admin_server"',
               s,
               count=1
           )
+          if not n:
+              raise SystemExit("applicationId tidak ditemukan")
 
-          signing = '''
-          signingConfigs {
-              create("adlRelease") {
-                  storeFile = file("/tmp/adl-release.jks")
-                  storePassword = System.getenv("STORE_PASSWORD")
-                  keyAlias = System.getenv("KEY_ALIAS_VALUE")
-                  keyPassword = System.getenv("SIGN_PASSWORD")
+          signing = """
+              signingConfigs {
+                  create("adlRelease") {
+                      storeFile = file("/tmp/adl-release.jks")
+                      storePassword = System.getenv("STORE_PASSWORD")
+                      keyAlias = System.getenv("KEY_ALIAS_VALUE")
+                      keyPassword = System.getenv("SIGN_PASSWORD")
+                  }
               }
-          }
-          '''
+          """
 
           if 'create("adlRelease")' not in s:
-              s = s.replace("android {", "android {\\n" + signing, 1)
+              s = s.replace("android {", "android {\n" + signing, 1)
 
           if 'signingConfig = signingConfigs.getByName("adlRelease")' not in s:
-              s = re.sub(
-                  r'buildTypes\\s*\\{\\s*getByName\\("release"\\)\\s*\\{',
-                  'buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("adlRelease")',
-                  s,
-                  count=1
+              pattern = r'buildTypes\s*\{\s*getByName\("release"\)\s*\{'
+              replacement = (
+                  'buildTypes {\n'
+                  '        getByName("release") {\n'
+                  '            signingConfig = signingConfigs.getByName("adlRelease")'
               )
+              s, n = re.subn(pattern, replacement, s, count=1)
+              if not n:
+                  raise SystemExit("Blok buildTypes release tidak ditemukan")
 
           p.write_text(s)
 
           m = Path("android/app/src/main/AndroidManifest.xml")
           t = m.read_text()
-          t = re.sub(r'android:label="[^"]*"', 'android:label="ADL Admin Server"', t, count=1)
+          t = re.sub(
+              r'android:label="[^"]*"',
+              'android:label="ADL Admin Server"',
+              t,
+              count=1
+          )
 
           if "android.permission.INTERNET" not in t:
               t = t.replace(
                   "<application",
-                  '<uses-permission android:name="android.permission.INTERNET"/>\\n    <application',
+                  '    <uses-permission android:name="android.permission.INTERNET"/>\n    <application',
                   1
               )
 
