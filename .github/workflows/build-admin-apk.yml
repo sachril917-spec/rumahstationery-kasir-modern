@@ -78,16 +78,23 @@ jobs:
           if 'create("adlRelease")' not in s:
               s = s.replace("android {", "android {\n" + signing, 1)
 
-          if 'signingConfig = signingConfigs.getByName("adlRelease")' not in s:
-              pattern = r'buildTypes\s*\{\s*getByName\("release"\)\s*\{'
-              replacement = (
-                  'buildTypes {\n'
-                  '        getByName("release") {\n'
-                  '            signingConfig = signingConfigs.getByName("adlRelease")'
-              )
-              s, n = re.subn(pattern, replacement, s, count=1)
-              if not n:
-                  raise SystemExit("Blok buildTypes release tidak ditemukan")
+        release_signing = 'signingConfig = signingConfigs.getByName("adlRelease")'
+
+if 'signingConfig = signingConfigs.getByName("debug")' in s:
+    s = s.replace(
+        'signingConfig = signingConfigs.getByName("debug")',
+        release_signing
+    )
+elif release_signing not in s:
+    pattern = r'(buildTypes\s*\{\s*release\s*\{)'
+    s, n = re.subn(
+        pattern,
+        r'\1\n            ' + release_signing,
+        s,
+        count=1
+    )
+    if not n:
+        raise SystemExit("Blok release tidak ditemukan")
 
           p.write_text(s)
 
