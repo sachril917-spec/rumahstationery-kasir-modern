@@ -16,14 +16,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Ambil source code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Siapkan Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
+      - name: Siapkan Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
@@ -32,7 +35,7 @@ jobs:
         working-directory: admin_app
         run: flutter create --platforms=android --org id.adl --project-name admin_server .
 
-      - name: Atur nama aplikasi dan kunci signing
+      - name: Atur identitas dan signing APK
         working-directory: admin_app
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -53,6 +56,9 @@ jobs:
           import re
 
           p = Path("android/app/build.gradle.kts")
+          if not p.exists():
+              raise SystemExit("build.gradle.kts tidak ditemukan")
+
           s = p.read_text()
 
           s, n = re.subn(
@@ -78,27 +84,30 @@ jobs:
           if 'create("adlRelease")' not in s:
               s = s.replace("android {", "android {\n" + signing, 1)
 
-        release_signing = 'signingConfig = signingConfigs.getByName("adlRelease")'
+          release_signing = 'signingConfig = signingConfigs.getByName("adlRelease")'
 
-if 'signingConfig = signingConfigs.getByName("debug")' in s:
-    s = s.replace(
-        'signingConfig = signingConfigs.getByName("debug")',
-        release_signing
-    )
-elif release_signing not in s:
-    pattern = r'(buildTypes\s*\{\s*release\s*\{)'
-    s, n = re.subn(
-        pattern,
-        r'\1\n            ' + release_signing,
-        s,
-        count=1
-    )
-    if not n:
-        raise SystemExit("Blok release tidak ditemukan")
+          if 'signingConfig = signingConfigs.getByName("debug")' in s:
+              s = s.replace(
+                  'signingConfig = signingConfigs.getByName("debug")',
+                  release_signing
+              )
+          elif release_signing not in s:
+              pattern = r'(buildTypes\s*\{[\s\S]*?\brelease\s*\{)'
+              s, n = re.subn(
+                  pattern,
+                  lambda m: m.group(1) + "\n            " + release_signing,
+                  s,
+                  count=1
+              )
+              if not n:
+                  raise SystemExit("Konfigurasi release tidak ditemukan")
 
           p.write_text(s)
 
           m = Path("android/app/src/main/AndroidManifest.xml")
+          if not m.exists():
+              raise SystemExit("AndroidManifest.xml tidak ditemukan")
+
           t = m.read_text()
           t = re.sub(
               r'android:label="[^"]*"',
@@ -125,12 +134,19 @@ elif release_signing not in s:
         working-directory: admin_app
         run: flutter build apk --release --target-platform android-arm64
 
+      - name: Periksa APK
+        run: |
+          APK="admin_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+
       - name: Simpan APK
         run: |
           mkdir -p output
           cp admin_app/build/app/outputs/flutter-apk/app-release.apk output/ADL-Admin-Server.apk
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: ADL-Admin-Server
           path: output/ADL-Admin-Server.apk
