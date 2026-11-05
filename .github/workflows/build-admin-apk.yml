@@ -1,3 +1,4 @@
+
 name: Build APK Admin Server ADL
 
 on:
@@ -13,37 +14,111 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
-      - name: Create Android project
+      - name: Buat project Android
         working-directory: admin_app
         run: flutter create --platforms=android --org id.adl --project-name admin_server .
 
-      - name: Set app name and internet permission
+      - name: Atur nama aplikasi dan kunci signing
         working-directory: admin_app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          sed -i 's/android:label="[^"]*"/android:label="ADL Admin Server"/' android/app/src/main/AndroidManifest.xml
-          sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          set -e
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/adl-release.jks
+          test -s /tmp/adl-release.jks
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS_VALUE"
+          test -n "$SIGN_PASSWORD"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+
+          s = re.sub(
+              r'applicationId\s*=\s*"[^"]+"',
+              'applicationId = "id.adl.admin_server"',
+              s,
+              count=1
+          )
+
+          signing = '''
+          signingConfigs {
+              create("adlRelease") {
+                  storeFile = file("/tmp/adl-release.jks")
+                  storePassword = System.getenv("STORE_PASSWORD")
+                  keyAlias = System.getenv("KEY_ALIAS_VALUE")
+                  keyPassword = System.getenv("SIGN_PASSWORD")
+              }
+          }
+          '''
+
+          if 'create("adlRelease")' not in s:
+              s = s.replace("android {", "android {\\n" + signing, 1)
+
+          if 'signingConfig = signingConfigs.getByName("adlRelease")' not in s:
+              s = re.sub(
+                  r'buildTypes\\s*\\{\\s*getByName\\("release"\\)\\s*\\{',
+                  'buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("adlRelease")',
+                  s,
+                  count=1
+              )
+
+          p.write_text(s)
+
+          m = Path("android/app/src/main/AndroidManifest.xml")
+          t = m.read_text()
+          t = re.sub(r'android:label="[^"]*"', 'android:label="ADL Admin Server"', t, count=1)
+
+          if "android.permission.INTERNET" not in t:
+              t = t.replace(
+                  "<application",
+                  '<uses-permission android:name="android.permission.INTERNET"/>\\n    <application',
+                  1
+              )
+
+          m.write_text(t)
+          PY
 
       - name: Install dependencies
         working-directory: admin_app
         run: flutter pub get
 
-      - name: Build APK for Samsung
+      - name: Build APK
         working-directory: admin_app
         run: flutter build apk --release --target-platform android-arm64
 
-      - name: Rename APK
+      - name: Simpan APK
         run: |
           mkdir -p output
-          cp admin_app/build/app/outputs/flutter-apk/app-release.apk output/ADL-Admin-Server-v1.0.1.apk
+          cp admin_app/build/app/outputs/flutter-apk/app-release.apk output/ADL-Admin-Server.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ADL-Admin-Server-v1.0.1
-          path: output/ADL-Admin-Server-v1.0.1.apk
+          name: ADL-Admin-Server
+          path: output/ADL-Admin-Server.apk
+          retention-days: 30
+
+      - name: Bersihkan kunci sementara
+        if: always()
+        run: rm -f /tmp/adl-release.jks
