@@ -130,7 +130,7 @@ jobs:
         working-directory: admin_app
         run: flutter pub get
 
-            - name: Build APK
+      - name: Build APK
         working-directory: admin_app
         env:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
