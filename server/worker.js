@@ -17,6 +17,60 @@ export default {
 
     const url = new URL(request.url);
 
+if (url.pathname === "/admin/products" &&
+    (request.method === "POST" || request.method === "PUT")) {
+  if (!env.ADMIN_API_KEY || !env.DB_RUMAH_STATIONERY) {
+    return json({ success:false, message:"ADMIN_API_KEY atau database belum tersedia." }, 503);
+  }
+  if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_API_KEY}`) {
+    return json({ success:false, message:"Akses Admin ditolak." }, 401);
+  }
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ success:false, message:"JSON tidak valid." }, 400); }
+
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const barcode = typeof body?.barcode === "string" ? body.barcode.trim() : null;
+  const price = Number(body?.price);
+  const stock = Number(body?.stock);
+
+  if (!name || !Number.isFinite(price) || price < 0 ||
+      !Number.isInteger(stock) || stock < 0) {
+    return json({ success:false, message:"Nama wajib diisi; harga harus angka nol atau lebih; stok harus bilangan bulat nol atau lebih." }, 400);
+  }
+
+  try {
+    const db = env.DB_RUMAH_STATIONERY;
+    const updatedAt = new Date().toISOString();
+
+    if (request.method === "POST") {
+      const id = crypto.randomUUID();
+      await db.prepare(`
+        INSERT INTO products (id, barcode, name, price, stock, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(id, barcode || null, name, price, stock, updatedAt).run();
+      return json({ success:true, message:"Barang berhasil ditambahkan.", id }, 201);
+    }
+
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return json({ success:false, message:"ID barang wajib dikirim untuk edit." }, 400);
+
+    const result = await db.prepare(`
+      UPDATE products
+      SET barcode = ?, name = ?, price = ?, stock = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(barcode || null, name, price, stock, updatedAt, id).run();
+
+    if (!(result.meta?.changes > 0)) {
+      return json({ success:false, message:"Barang tidak ditemukan atau tidak berubah." }, 404);
+    }
+    return json({ success:true, message:"Barang berhasil diperbarui." });
+  } catch (error) {
+    return json({ success:false, message:"Gagal menyimpan master barang.", details:String(error?.message || error) }, 500);
+  }
+}
+
     if (url.pathname === "/health" && request.method === "GET") {
       try {
         if (!env.DB_RUMAH_STATIONERY) {
