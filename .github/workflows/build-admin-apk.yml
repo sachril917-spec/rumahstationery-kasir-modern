@@ -130,9 +130,15 @@ jobs:
         working-directory: admin_app
         run: flutter pub get
 
-      - name: Build APK
+            - name: Build APK
         working-directory: admin_app
-        run: flutter build apk --release --target-platform android-arm64
+        env:
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS_VALUE: ${{ secrets.KEY_ALIAS }}
+          SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          flutter build apk --release --target-platform android-arm64
 
       - name: Periksa APK
         run: |
