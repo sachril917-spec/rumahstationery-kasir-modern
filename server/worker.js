@@ -66,14 +66,14 @@ export default {
 
     // LAPORAN PENJUALAN UNTUK APK ADMIN
     if (url.pathname === "/admin/sales" && request.method === "GET") {
-      if (!env.API_KEY || !env.DB_RUMAH_STATIONERY) {
+      if (!env.ADMIN_API_KEY || !env.DB_RUMAH_STATIONERY) {
         return json({
           success: false,
           message: "API_KEY atau database belum tersedia."
         }, 503);
       }
 
-      if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
+      if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_API_KEY}`) {
         return json({
           success: false,
           message: "Akses Admin ditolak."
@@ -141,6 +141,115 @@ export default {
       }
     }
 
+
+// ENDPOINT ADMIN PUSAT ADL
+if (url.pathname.startsWith("/admin/") && request.method === "GET") {
+  const adminDb = env.DB_RUMAH_STATIONERY;
+
+  if (!env.ADMIN_API_KEY || !adminDb) {
+    return json({
+      success: false,
+      message: "ADMIN_API_KEY atau database belum tersedia."
+    }, 503);
+  }
+
+  if (
+    request.headers.get("Authorization") !==
+    `Bearer ${env.ADMIN_API_KEY}`
+  ) {
+    return json({
+      success: false,
+      message: "Akses Admin ditolak."
+    }, 401);
+  }
+
+  try {
+    const date = url.searchParams.get("date") ||
+      new Date().toISOString().slice(0, 10);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return json({
+        success: false,
+        message: "Format tanggal harus YYYY-MM-DD."
+      }, 400);
+    }
+
+    if (url.pathname === "/admin/overview") {
+      const [products, sales, expenses, branches] =
+        await Promise.all([
+          adminDb.prepare(`
+            SELECT COUNT(*) AS count,
+                   COALESCE(SUM(stock), 0) AS stock
+            FROM products
+          `).first(),
+
+          adminDb.prepare(`
+            SELECT COUNT(*) AS count,
+                   COALESCE(SUM(total), 0) AS total
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+          `).bind(date).first(),
+
+          adminDb.prepare(`
+            SELECT COUNT(*) AS count,
+                   COALESCE(SUM(amount), 0) AS total
+            FROM expenses
+            WHERE expense_date = ?
+              AND deleted_at IS NULL
+          `).bind(date).first(),
+
+          adminDb.prepare(`
+            SELECT branch_id,
+                   COUNT(*) AS count,
+                   COALESCE(SUM(total), 0) AS total
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+            GROUP BY branch_id
+            ORDER BY total DESC
+          `).bind(date).all()
+        ]);
+
+      return json({
+        success: true,
+        date,
+        products: Number(products?.count || 0),
+        total_stock: Number(products?.stock || 0),
+        sales_count: Number(sales?.count || 0),
+        sales_total: Number(sales?.total || 0),
+        expenses_count: Number(expenses?.count || 0),
+        expenses_total: Number(expenses?.total || 0),
+        branch_sales: branches.results || []
+      });
+    }
+
+    if (url.pathname === "/admin/products") {
+      const result = await adminDb.prepare(`
+        SELECT id, barcode, name, price, stock, updated_at
+        FROM products
+        ORDER BY name
+        LIMIT 1000
+      `).all();
+
+      return json({
+        success: true,
+        products: result.results || []
+      });
+    }
+
+    return json({
+      success: false,
+      message: "Endpoint admin tidak ditemukan."
+    }, 404);
+
+  } catch (error) {
+    return json({
+      success: false,
+      message: "Gagal membaca data Admin.",
+      details: String(error?.message || error)
+    }, 500);
+  }
+}
+
     if (
       url.pathname !== "/sync/transactions" ||
       request.method !== "POST"
@@ -158,10 +267,7 @@ export default {
       }, 503);
     }
 
-    if (
-      request.headers.get("Authorization") !==
-      `Bearer ${env.API_KEY}`
-    ) {
+    if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
       return json({
         success: false,
         message: "API key tidak valid."
