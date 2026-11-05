@@ -135,6 +135,81 @@ export default {
       }
     }
 
+
+    // API DASHBOARD ADMIN PUSAT ADL
+    if (url.pathname === "/admin/dashboard" && request.method === "GET") {
+      if (!env.ADMIN_API_KEY) {
+        return json({
+          success: false,
+          message: "ADMIN_API_KEY belum dikonfigurasi."
+        }, 503);
+      }
+
+      if (
+        request.headers.get("Authorization") !==
+        `Bearer ${env.ADMIN_API_KEY}`
+      ) {
+        return json({
+          success: false,
+          message: "Akses Admin ditolak."
+        }, 401);
+      }
+
+      const date = url.searchParams.get("date") ||
+        new Date().toISOString().slice(0, 10);
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return json({
+          success: false,
+          message: "Format tanggal tidak valid."
+        }, 400);
+      }
+
+      try {
+        const [products, sales, branches] = await Promise.all([
+          db.prepare(`
+            SELECT COUNT(*) AS jumlah_barang,
+                   COALESCE(SUM(stok), 0) AS total_stok
+            FROM produk
+          `).first(),
+
+          db.prepare(`
+            SELECT COUNT(*) AS jumlah_transaksi,
+                   COALESCE(SUM(total), 0) AS total_penjualan
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+          `).bind(date).first(),
+
+          db.prepare(`
+            SELECT branch_id,
+                   COUNT(*) AS jumlah_transaksi,
+                   COALESCE(SUM(total), 0) AS total_penjualan
+            FROM transactions
+            WHERE substr(created_at, 1, 10) = ?
+            GROUP BY branch_id
+            ORDER BY total_penjualan DESC
+          `).bind(date).all()
+        ]);
+
+        return json({
+          success: true,
+          tanggal: date,
+          jumlah_barang: products?.jumlah_barang || 0,
+          total_stok: products?.total_stok || 0,
+          jumlah_transaksi: sales?.jumlah_transaksi || 0,
+          total_penjualan: sales?.total_penjualan || 0,
+          cabang: branches.results || []
+        });
+
+      } catch (error) {
+        return json({
+          success: false,
+          message: "Gagal membaca dashboard.",
+          details: String(error?.message || error)
+        }, 500);
+      }
+    }
+
     if (url.pathname !== "/sync/transactions" || request.method !== "POST") {
       return json({ success: false, message: "Endpoint tidak ditemukan." }, 404);
     }
