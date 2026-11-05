@@ -87,9 +87,9 @@ export default {
       });
     }
 
-    if (!db || !env.API_KEY) {
-      return json({ success: false, message: "API_KEY atau binding D1 belum dikonfigurasi." }, 503);
-    }
+    if (!db) {
+  return json({ success: false, message: "Binding D1 belum dikonfigurasi." }, 503);
+}
 
     // Jalankan berulang untuk mengisi rincian transaksi lama yang masih kosong.
     if (url.pathname === "/admin/backfill-items" && request.method === "POST") {
@@ -169,8 +169,8 @@ export default {
         const [products, sales, branches] = await Promise.all([
           db.prepare(`
             SELECT COUNT(*) AS jumlah_barang,
-                   COALESCE(SUM(stok), 0) AS total_stok
-            FROM produk
+       COALESCE(SUM(stock), 0) AS total_stok
+FROM products
           `).first(),
 
           db.prepare(`
