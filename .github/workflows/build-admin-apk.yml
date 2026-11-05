@@ -24,10 +24,11 @@ jobs:
         working-directory: admin_app
         run: flutter create --platforms=android --org id.adl --project-name admin_server .
 
-      - name: Set app name
+      - name: Set app name and internet permission
         working-directory: admin_app
         run: |
           sed -i 's/android:label="[^"]*"/android:label="ADL Admin Server"/' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
 
       - name: Install dependencies
         working-directory: admin_app
