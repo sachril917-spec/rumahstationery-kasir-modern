@@ -27,6 +27,12 @@ class AdminHome extends StatefulWidget {
 class _AdminHomeState extends State<AdminHome>{
  int selected=0; String keyAdmin='',search=''; bool loading=false; String? error;
  Map<String,dynamic>? overview; List<dynamic> products=[],sales=[]; DateTime date=DateTime.now();
+List<dynamic> receipts = [];
+final supplierController = TextEditingController();
+final quantityController = TextEditingController();
+final costController = TextEditingController();
+final notesController = TextEditingController();
+String? receiptProductId;
  String get day=>'${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
  Map<String,String> get headers=>{'Authorization':'Bearer $keyAdmin','Content-Type':'application/json'};
  @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>enterKey());}
@@ -48,14 +54,90 @@ class _AdminHomeState extends State<AdminHome>{
   return x;
  }
  Future<void> busy(Future<void> Function() f)async{
-  setState(()=>{loading=true,error=null});
+  setState(() {
+  loading = true;
+  error = null;
+});
   try{await f();}catch(e){if(mounted)setState(()=>error=e.toString().replaceFirst('Exception: ',''));}
   finally{if(mounted)setState(()=>loading=false);}
  }
  Future<void> loadOverview()=>busy(()async{final x=await callApi('GET','/admin/overview?date=$day');if(mounted)setState(()=>overview=x);});
  Future<void> loadProducts()=>busy(()async{final x=await callApi('GET','/admin/products');if(mounted)setState(()=>products=(x['products'] as List?)??[]);});
+Future<void> loadGoodsReceipts() => busy(() async {
+  final r = await Future.wait([
+    callApi('GET', '/admin/products'),
+    callApi('GET', '/admin/goods-receipts'),
+  ]);
+
+  if (mounted) {
+    setState(() {
+      products = (r[0]['products'] as List?) ?? [];
+      receipts = (r[1]['receipts'] as List?) ?? [];
+
+      if (receiptProductId == null && products.isNotEmpty) {
+        receiptProductId = '${products.first['id']}';
+      }
+    });
+  }
+});
+
+Future<void> saveGoodsReceipt() async {
+  final qty = int.tryParse(quantityController.text.trim());
+  final cost = int.tryParse(costController.text.trim());
+
+  if (receiptProductId == null ||
+      supplierController.text.trim().isEmpty ||
+      qty == null || qty <= 0 ||
+      cost == null || cost < 0) {
+    setState(() {
+      error = 'Lengkapi barang, supplier, jumlah, dan harga beli.';
+    });
+    return;
+  }
+
+  await busy(() async {
+    final saved = await callApi('POST', '/admin/goods-receipts', {
+      'product_id': receiptProductId,
+      'supplier_name': supplierController.text.trim(),
+      'quantity': qty,
+      'unit_cost': cost,
+      'notes': notesController.text.trim(),
+    });
+
+    final r = await Future.wait([
+      callApi('GET', '/admin/products'),
+      callApi('GET', '/admin/goods-receipts'),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        products = (r[0]['products'] as List?) ?? [];
+        receipts = (r[1]['receipts'] as List?) ?? [];
+        quantityController.clear();
+        costController.clear();
+        notesController.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Tersimpan ${saved['receipt_number']}; stok bertambah $qty',
+          ),
+        ),
+      );
+    }
+  });
+}
  Future<void> loadSales()=>busy(()async{final x=await callApi('GET','/admin/sales?date=$day');if(mounted)setState(()=>sales=(x['transaksi'] as List?)??[]);});
- void choose(int i){Navigator.pop(context);setState(()=>selected=i);if(i==0)loadOverview();if(i==4)loadProducts();if(i==10||i==13)loadSales();}
+ void choose(int i) {
+  Navigator.pop(context);
+  setState(() => selected = i);
+
+  if (i == 0) loadOverview();
+  if (i == 4) loadProducts();
+  if (i == 5) loadGoodsReceipts();
+  if (i == 10 || i == 13) loadSales();
+}
  Future<void> chooseDate()async{final v=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime(2100));if(v==null)return;setState(()=>date=v);if(selected==0)loadOverview();if(selected==10||selected==13)loadSales();}
  String rupiah(dynamic v){final n=(v is num?v:num.tryParse('$v')??0).round().toString();final b=StringBuffer();for(var i=0;i<n.length;i++){if(i>0&&(n.length-i)%3==0)b.write('.');b.write(n[i]);}return 'Rp $b';}
  Future<void> editProduct([Map<String,dynamic>? p])async{
@@ -89,8 +171,23 @@ class _AdminHomeState extends State<AdminHome>{
    const Padding(padding:EdgeInsets.all(20),child:Text('RUMAH STATIONERY • ADL',style:TextStyle(fontWeight:FontWeight.bold))),
    for(var i=0;i<menus.length;i++)NavigationDrawerDestination(icon:Icon(menus[i].$2),label:Text(menus[i].$1))]),
   body:page());
- Widget page(){if(selected==0)return dashboard();if(selected==4)return productPage();if(selected==10||selected==13)return salesPage();
-  return Center(child:Padding(padding:const EdgeInsets.all(24),child:Text('${menus[selected].$1}\n\nMenu ini belum dihubungkan ke database.',textAlign:TextAlign.center,style:const TextStyle(fontSize:18))));}
+ Widget page() {
+  if (selected == 0) return dashboard();
+  if (selected == 4) return productPage();
+  if (selected == 5) return goodsReceiptPage();
+  if (selected == 10 || selected == 13) return salesPage();
+
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        '${menus[selected].$1}\n\nMenu ini belum dihubungkan ke database.',
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 18),
+      ),
+    ),
+  );
+}
  Widget dashboard()=>RefreshIndicator(onRefresh:loadOverview,child:ListView(padding:const EdgeInsets.all(16),children:[
   const Text('Dashboard Pusat ADL',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const Text('Ringkasan data dari Cloudflare D1'),
   OutlinedButton.icon(onPressed:chooseDate,icon:const Icon(Icons.calendar_month),label:Text('Tanggal: $day')),
@@ -118,6 +215,136 @@ class _AdminHomeState extends State<AdminHome>{
      onTap:()=>editProduct(x)));})),
   ]);
  }
+Widget goodsReceiptPage() {
+  String money(dynamic v) => rupiah(v);
+
+  return ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      const Text(
+        'PENERIMAAN BARANG GUDANG PUSAT',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+
+      const SizedBox(height: 8),
+
+      const Text(
+        'Barang diterima dari supplier akan menambah stok dan tercatat di riwayat.',
+      ),
+
+      const SizedBox(height: 12),
+
+      if (loading) const LinearProgressIndicator(),
+      if (error != null) errorCard(),
+
+      TextField(
+        controller: supplierController,
+        decoration: const InputDecoration(
+          labelText: 'Nama supplier *',
+          border: OutlineInputBorder(),
+        ),
+      ),
+
+      const SizedBox(height: 10),
+
+      DropdownButtonFormField<String>(
+        value: products.any((e) => '${e['id']}' == receiptProductId)
+            ? receiptProductId
+            : null,
+        decoration: const InputDecoration(
+          labelText: 'Pilih barang *',
+          border: OutlineInputBorder(),
+        ),
+        items: products.map((e) {
+          return DropdownMenuItem<String>(
+            value: '${e['id']}',
+            child: Text(
+              '${e['name']} (stok: ${e['stock']})',
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (v) {
+          setState(() => receiptProductId = v);
+        },
+      ),
+
+      const SizedBox(height: 10),
+
+      TextField(
+        controller: quantityController,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Jumlah diterima *',
+          border: OutlineInputBorder(),
+        ),
+      ),
+
+      const SizedBox(height: 10),
+
+      TextField(
+        controller: costController,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Harga beli per unit (Rp) *',
+          border: OutlineInputBorder(),
+        ),
+      ),
+
+      const SizedBox(height: 10),
+
+      TextField(
+        controller: notesController,
+        maxLines: 2,
+        decoration: const InputDecoration(
+          labelText: 'Catatan (opsional)',
+          border: OutlineInputBorder(),
+        ),
+      ),
+
+      const SizedBox(height: 12),
+
+      FilledButton.icon(
+        onPressed: loading ? null : saveGoodsReceipt,
+        icon: const Icon(Icons.save),
+        label: const Text('SIMPAN BARANG MASUK'),
+      ),
+
+      const Divider(height: 28),
+
+      const Text(
+        'RIWAYAT BARANG MASUK',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+      ),
+
+      if (receipts.isEmpty)
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Belum ada riwayat barang masuk.'),
+        ),
+
+      ...receipts.map((e) {
+        final x = e as Map<String, dynamic>;
+
+        return Card(
+          child: ListTile(
+            title: Text('${x['product_name']}'),
+            subtitle: Text(
+              '${x['receipt_number']} • Supplier: ${x['supplier_name']}\n'
+              '${x['received_at']} • Qty: ${x['quantity']} × '
+              '${money(x['unit_cost'])}',
+            ),
+            isThreeLine: true,
+            trailing: Text(
+              money(x['total_cost']),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        );
+      }),
+    ],
+  );
+}
  Widget salesPage()=>Column(children:[
   Padding(padding:const EdgeInsets.all(12),child:Row(children:[Expanded(child:Text('Tanggal: $day')),
    TextButton.icon(onPressed:chooseDate,icon:const Icon(Icons.calendar_month),label:const Text('Pilih tanggal'))])),
