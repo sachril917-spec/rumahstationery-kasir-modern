@@ -352,6 +352,135 @@ if (url.pathname.startsWith("/admin/") && request.method === "GET") {
   }
 }
 
+// SINKRONISASI PENGELUARAN DARI APK KASIR
+if (url.pathname === "/sync/expenses" && request.method === "POST") {
+  const db = env.DB_RUMAH_STATIONERY;
+
+  if (!env.API_KEY || !db) {
+    return json({
+      success: false,
+      message: "API_KEY atau binding D1 belum dikonfigurasi."
+    }, 503);
+  }
+
+  if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
+    return json({
+      success: false,
+      message: "API key tidak valid."
+    }, 401);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, message: "JSON tidak valid." }, 400);
+  }
+
+  const { device_id, branch_id, expenses } = body ?? {};
+
+  if (
+    typeof device_id !== "string" || !device_id.trim() ||
+    typeof branch_id !== "string" || !branch_id.trim() ||
+    !Array.isArray(expenses) ||
+    expenses.length < 1 || expenses.length > 100
+  ) {
+    return json({
+      success: false,
+      message: "Data cabang, perangkat, atau pengeluaran tidak valid."
+    }, 400);
+  }
+
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY,
+        branch_id TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        expense_date TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        received_at TEXT NOT NULL
+      )
+    `).run();
+
+    const receivedAt = new Date().toISOString();
+    const statements = [];
+
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+
+      if (
+        !e || typeof e.id !== "string" || !e.id.trim() ||
+        typeof e.expense_date !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(e.expense_date) ||
+        typeof e.description !== "string" || !e.description.trim() ||
+        !Number.isSafeInteger(e.amount) || e.amount <= 0 ||
+        typeof e.created_at !== "string" ||
+        typeof e.updated_at !== "string" ||
+        !(e.deleted_at === null || typeof e.deleted_at === "string")
+      ) {
+        return json({
+          success: false,
+          message: "Data pengeluaran tidak valid.",
+          expense_index: i,
+          expense_id: e?.id ?? null
+        }, 400);
+      }
+
+      statements.push(
+        db.prepare(`
+          INSERT INTO expenses (
+            id, branch_id, device_id, expense_date,
+            description, amount, created_at, updated_at,
+            deleted_at, received_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            branch_id = excluded.branch_id,
+            device_id = excluded.device_id,
+            expense_date = excluded.expense_date,
+            description = excluded.description,
+            amount = excluded.amount,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at,
+            received_at = excluded.received_at
+          WHERE excluded.updated_at >= expenses.updated_at
+        `).bind(
+          e.id,
+          branch_id,
+          device_id,
+          e.expense_date,
+          e.description.trim(),
+          e.amount,
+          e.created_at,
+          e.updated_at,
+          e.deleted_at,
+          receivedAt
+        )
+      );
+    }
+
+    await db.batch(statements);
+
+    return json({
+      success: true,
+      received: expenses.length,
+      message: "Pengeluaran berhasil disinkronkan."
+    });
+
+  } catch (error) {
+    return json({
+      success: false,
+      message: "Gagal menyimpan pengeluaran.",
+      details: String(error?.message || error)
+    }, 500);
+  }
+}
+
     if (
       url.pathname !== "/sync/transactions" ||
       request.method !== "POST"
