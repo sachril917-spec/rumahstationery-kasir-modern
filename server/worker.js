@@ -3,7 +3,7 @@ export default {
   async fetch(request, env) {
     const cors = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Content-Type": "application/json; charset=utf-8"
     };
@@ -16,6 +16,54 @@ export default {
     }
 
     const url = new URL(request.url);
+
+if (url.pathname === "/admin/goods-receipts" &&
+    (request.method === "GET" || request.method === "POST")) {
+  const db = env.DB_RUMAH_STATIONERY;
+  if (!env.ADMIN_API_KEY || !db) return json({success:false,message:"ADMIN_API_KEY atau database belum tersedia."},503);
+  if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_API_KEY}`)
+    return json({success:false,message:"Akses Admin ditolak."},401);
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS goods_receipt_log (
+        id TEXT PRIMARY KEY, receipt_number TEXT NOT NULL UNIQUE,
+        supplier_name TEXT NOT NULL, product_id TEXT NOT NULL, product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK(quantity > 0),
+        unit_cost INTEGER NOT NULL CHECK(unit_cost >= 0),
+        total_cost INTEGER NOT NULL CHECK(total_cost >= 0),
+        received_at TEXT NOT NULL, notes TEXT
+      )
+    `).run();
+
+    if (request.method === "GET") {
+      const r = await db.prepare(`SELECT * FROM goods_receipt_log ORDER BY received_at DESC LIMIT 200`).all();
+      return json({success:true,receipts:r.results || []});
+    }
+    let b;
+    try { b = await request.json(); } catch { return json({success:false,message:"JSON tidak valid."},400); }
+    const productId = typeof b?.product_id === "string" ? b.product_id.trim() : "";
+    const supplier = typeof b?.supplier_name === "string" ? b.supplier_name.trim() : "";
+    const qty = Number(b?.quantity), cost = Number(b?.unit_cost);
+    const notes = typeof b?.notes === "string" ? b.notes.trim() : "";
+    if (!productId || !supplier || !Number.isInteger(qty) || qty <= 0 ||
+        !Number.isInteger(cost) || cost < 0)
+      return json({success:false,message:"Barang, supplier, jumlah bulat, dan harga beli wajib diisi dengan benar."},400);
+
+    const p = await db.prepare("SELECT id,name FROM products WHERE id=?").bind(productId).first();
+    if (!p) return json({success:false,message:"Barang tidak ditemukan."},404);
+    const id = crypto.randomUUID(), now = new Date().toISOString();
+    const no = "BM-" + now.replace(/[-:.TZ]/g,"").slice(0,14) + "-" + crypto.randomUUID().slice(0,6).toUpperCase();
+    await db.batch([
+      db.prepare("UPDATE products SET stock=stock+?, updated_at=? WHERE id=?").bind(qty,now,productId),
+      db.prepare(`INSERT INTO goods_receipt_log
+        (id,receipt_number,supplier_name,product_id,product_name,quantity,unit_cost,total_cost,received_at,notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(id,no,supplier,productId,p.name,qty,cost,qty*cost,now,notes || null)
+    ]);
+    return json({success:true,message:"Barang masuk tersimpan dan stok bertambah.",receipt_number:no,product_name:p.name,quantity:qty,total_cost:qty*cost},201);
+  } catch(e) {
+    return json({success:false,message:"Gagal memproses barang masuk.",details:String(e?.message || e)},500);
+  }
+}
 
 if (url.pathname === "/admin/products" &&
     (request.method === "POST" || request.method === "PUT")) {
