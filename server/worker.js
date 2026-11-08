@@ -352,22 +352,17 @@ if (url.pathname.startsWith("/admin/") && request.method === "GET") {
   }
 }
 
+
 // SINKRONISASI PENGELUARAN DARI APK KASIR
 if (url.pathname === "/sync/expenses" && request.method === "POST") {
   const db = env.DB_RUMAH_STATIONERY;
 
   if (!env.API_KEY || !db) {
-    return json({
-      success: false,
-      message: "API_KEY atau binding D1 belum dikonfigurasi."
-    }, 503);
+    return json({ success: false, message: "API_KEY atau database belum dikonfigurasi." }, 503);
   }
 
   if (request.headers.get("Authorization") !== `Bearer ${env.API_KEY}`) {
-    return json({
-      success: false,
-      message: "API key tidak valid."
-    }, 401);
+    return json({ success: false, message: "API key tidak valid." }, 401);
   }
 
   let body;
@@ -385,29 +380,10 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
     !Array.isArray(expenses) ||
     expenses.length < 1 || expenses.length > 100
   ) {
-    return json({
-      success: false,
-      message: "Data cabang, perangkat, atau pengeluaran tidak valid."
-    }, 400);
+    return json({ success: false, message: "Data pengeluaran tidak valid." }, 400);
   }
 
   try {
-    await db.prepare(`
-      CREATE TABLE IF NOT EXISTS expenses (
-        id TEXT PRIMARY KEY,
-        branch_id TEXT NOT NULL,
-        device_id TEXT NOT NULL,
-        expense_date TEXT NOT NULL,
-        description TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT,
-        received_at TEXT NOT NULL
-      )
-    `).run();
-
-    const receivedAt = new Date().toISOString();
     const statements = [];
 
     for (let i = 0; i < expenses.length; i++) {
@@ -435,10 +411,9 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
         db.prepare(`
           INSERT INTO expenses (
             id, branch_id, device_id, expense_date,
-            description, amount, created_at, updated_at,
-            deleted_at, received_at
+            description, amount, created_at, updated_at, deleted_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             branch_id = excluded.branch_id,
             device_id = excluded.device_id,
@@ -446,8 +421,7 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
             description = excluded.description,
             amount = excluded.amount,
             updated_at = excluded.updated_at,
-            deleted_at = excluded.deleted_at,
-            received_at = excluded.received_at
+            deleted_at = excluded.deleted_at
           WHERE excluded.updated_at >= expenses.updated_at
         `).bind(
           e.id,
@@ -458,8 +432,7 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
           e.amount,
           e.created_at,
           e.updated_at,
-          e.deleted_at,
-          receivedAt
+          e.deleted_at
         )
       );
     }
@@ -480,6 +453,7 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
     }, 500);
   }
 }
+
 
     if (
       url.pathname !== "/sync/transactions" ||
