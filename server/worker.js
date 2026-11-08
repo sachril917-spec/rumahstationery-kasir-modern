@@ -385,6 +385,7 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
 
   try {
     const statements = [];
+const receivedAt = new Date().toISOString();
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
@@ -410,10 +411,10 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
       statements.push(
         db.prepare(`
           INSERT INTO expenses (
-            id, branch_id, device_id, expense_date,
-            description, amount, created_at, updated_at, deleted_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  id, branch_id, device_id, expense_date,
+  description, amount, created_at, updated_at, deleted_at, received_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             branch_id = excluded.branch_id,
             device_id = excluded.device_id,
@@ -432,7 +433,8 @@ if (url.pathname === "/sync/expenses" && request.method === "POST") {
           e.amount,
           e.created_at,
           e.updated_at,
-          e.deleted_at
+          e.deleted_at,
+          receivedAt
         )
       );
     }
