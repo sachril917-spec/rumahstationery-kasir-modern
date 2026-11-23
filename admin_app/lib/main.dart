@@ -35,6 +35,14 @@ class _AdminHomeState extends State<AdminHome>{
  int selected=0; String keyAdmin='',search=''; bool loading=false; String? error;
  Map<String,dynamic>? overview; List<dynamic> products=[],sales=[]; DateTime date=DateTime.now();
 List<dynamic> receipts = [];
+List<dynamic> centralRecords = [];
+final centralTitle = TextEditingController();
+final centralCode = TextEditingController();
+final centralBranch = TextEditingController();
+final centralQty = TextEditingController(text: '0');
+final centralAmount = TextEditingController(text: '0');
+final centralStatus = TextEditingController(text: 'AKTIF');
+String get centralModule => const {1:'branches',2:'purchases',3:'suppliers',6:'warehouse_stock',7:'transfers',8:'branch_stock',9:'prices',11:'expenses',12:'supplier_debts',14:'users',15:'activity_logs' }[selected] ?? 'reports';
 final supplierController = TextEditingController();
 final quantityController = TextEditingController();
 final costController = TextEditingController();
@@ -204,6 +212,7 @@ Future<void> saveGoodsReceipt() async {
   if (i == 4) loadProducts();
   if (i == 5) loadGoodsReceipts();
   if (i == 10 || i == 13) loadSales();
+  if ([1,2,3,6,7,8,9,11,12,14,15].contains(i)) loadCentral();
 }
  Future<void> chooseDate()async{final v=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime(2100));if(v==null)return;setState(()=>date=v);if(selected==0)loadOverview();if(selected==10||selected==13)loadSales();}
  String rupiah(dynamic v){final n=(v is num?v:num.tryParse('$v')??0).round().toString();final b=StringBuffer();for(var i=0;i<n.length;i++){if(i>0&&(n.length-i)%3==0)b.write('.');b.write(n[i]);}return 'Rp $b';}
@@ -286,6 +295,7 @@ Future<void> saveGoodsReceipt() async {
   if (selected == 4) return productPage();
   if (selected == 5) return goodsReceiptPage();
   if (selected == 10 || selected == 13) return salesPage();
+  if ([1,2,3,6,7,8,9,11,12,14,15].contains(selected)) return centralPage();
 
   return Center(
     child: Padding(
@@ -298,6 +308,39 @@ Future<void> saveGoodsReceipt() async {
     ),
   );
 }
+ Future<void> loadCentral() => busy(() async {
+  final x=await callApi('GET','/admin/central/$centralModule');
+  if(mounted)setState(()=>centralRecords=(x['records'] as List?)??[]);
+ });
+ Future<void> addCentralRecord() async {
+  centralTitle.clear(); centralCode.clear(); centralBranch.clear(); centralQty.text='0'; centralAmount.text='0'; centralStatus.text='AKTIF';
+  final form=GlobalKey<FormState>();
+  final result=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(
+   title:Text('Tambah ${menus[selected].$1}'),
+   content:Form(key:form,child:SizedBox(width:440,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    TextFormField(controller:centralTitle,decoration:const InputDecoration(labelText:'Nama / Keterangan *'),validator:(v)=>v==null||v.trim().isEmpty?'Wajib diisi':null),
+    TextFormField(controller:centralCode,decoration:const InputDecoration(labelText:'Kode / Nomor')),
+    TextFormField(controller:centralBranch,decoration:const InputDecoration(labelText:'Cabang / Lokasi')),
+    TextFormField(controller:centralQty,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Jumlah')),
+    TextFormField(controller:centralAmount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Nominal (Rp)')),
+    TextFormField(controller:centralStatus,decoration:const InputDecoration(labelText:'Status')),
+   ])))),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Batal')),FilledButton(onPressed:()=>Navigator.pop(d,form.currentState!.validate()),child:const Text('Simpan'))]));
+  if(result!=true)return;
+  await busy(()async{
+   await callApi('POST','/admin/central/$centralModule',{'title':centralTitle.text.trim(),'code':centralCode.text.trim(),'branch':centralBranch.text.trim(),'quantity':double.tryParse(centralQty.text) ?? 0,'amount':int.tryParse(centralAmount.text) ?? 0,'status':centralStatus.text.trim(),'module_label':menus[selected].$1});
+   final x=await callApi('GET','/admin/central/$centralModule'); if(mounted)setState(()=>centralRecords=(x['records'] as List?)??[]);
+  });
+ }
+ Widget centralPage()=>RefreshIndicator(onRefresh:loadCentral,child:ListView(padding:const EdgeInsets.all(14),children:[
+  Text(menus[selected].$1,style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+  const SizedBox(height:5),Text('Data tersimpan di server pusat ADL • ${centralRecords.length} catatan'),
+  const SizedBox(height:12),Row(children:[Expanded(child:OutlinedButton.icon(onPressed:loadCentral,icon:const Icon(Icons.refresh),label:const Text('Muat ulang'))),const SizedBox(width:8),Expanded(child:FilledButton.icon(onPressed:loading?null:addCentralRecord,icon:const Icon(Icons.add),label:const Text('Tambah data')))]),
+  if(loading)const LinearProgressIndicator(),if(error!=null)errorCard(),
+  if(centralRecords.isEmpty)const Padding(padding:EdgeInsets.all(28),child:Center(child:Text('Belum ada data. Tekan Tambah data untuk mulai.'))),
+  ...centralRecords.map((e){final x=e as Map<String,dynamic>;return Card(child:ListTile(title:Text('${x['title']??'-'}'),subtitle:Text('Kode: ${x['code']??'-'} • Cabang: ${x['branch']??'-'}\nJumlah: ${x['quantity']??0} • Status: ${x['status']??'-'}'),isThreeLine:true,trailing:Text(rupiah(x['amount'])) ,onLongPress:()=>_deleteCentral('${x['id']}')));})
+ ]));
+ Future<void> _deleteCentral(String id)async{final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('Hapus data?'),content:const Text('Data ini akan dihapus dari modul.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Batal')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('Hapus'))]));if(ok!=true)return;await busy(()async{await http.delete(Uri.parse('$api/admin/central/$centralModule?id=$id'),headers:headers).then((r){final x=jsonDecode(r.body);if(r.statusCode<200||r.statusCode>=300||x['success']!=true)throw Exception(x['message']??'Gagal hapus');});final x=await callApi('GET','/admin/central/$centralModule');if(mounted)setState(()=>centralRecords=(x['records'] as List?)??[]);});}
+
  Widget settingsPage() => ListView(
   padding: const EdgeInsets.all(16),
   children: [
