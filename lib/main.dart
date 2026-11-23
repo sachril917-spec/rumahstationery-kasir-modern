@@ -37,7 +37,7 @@ class KasirDB {
   Future<void> init() async {
     db = await openDatabase(
       p.join(await getDatabasesPath(), 'rumah_stationery.db'),
-      version: 7,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE products(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -56,7 +56,10 @@ unit3_qty INTEGER NOT NULL DEFAULT 1,
 sales_price INTEGER NOT NULL DEFAULT 0,
 special_price INTEGER NOT NULL DEFAULT 0,
 supplier_code TEXT NOT NULL DEFAULT '',
-discount INTEGER NOT NULL DEFAULT 0
+discount INTEGER NOT NULL DEFAULT 0,
+barcode2 TEXT NOT NULL DEFAULT '',
+barcode3 TEXT NOT NULL DEFAULT '',
+member_prices TEXT NOT NULL DEFAULT '{}'
 )''');
         await db.execute('''CREATE TABLE members(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -152,12 +155,13 @@ if (oldVersion < 6) {
             await db.execute(sql);
           }
         }
+        if (oldVersion < 8) {
+          await db.execute("ALTER TABLE products ADD COLUMN barcode2 TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE products ADD COLUMN barcode3 TEXT NOT NULL DEFAULT ''");
+          await db.execute("ALTER TABLE products ADD COLUMN member_prices TEXT NOT NULL DEFAULT '{}'");
+        }
       },
     );
-    // Index pencarian dibuat tanpa mengubah atau menghapus data lama.
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)');
     await importExcelMasterIfNeeded();
   }
 
@@ -224,21 +228,18 @@ if (oldVersion < 6) {
     }
   }
 
-  // Jangan pernah memuat belasan ribu barang sekaligus ke tampilan kasir.
-  // Saat kolom pencarian kosong, tampilkan 100 barang pertama saja.
-  Future<List<Map<String, Object?>>> products(String q) async {
-    final term = q.trim();
-    if (term.isEmpty) {
-      return db.query('products', orderBy: 'name COLLATE NOCASE', limit: 100);
-    }
-    return db.query(
-      'products',
-      where: 'code = ? OR barcode = ? OR code LIKE ? OR barcode LIKE ? OR name LIKE ?',
-      whereArgs: [term, term, '$term%', '$term%', '%$term%'],
-      orderBy: 'name COLLATE NOCASE',
-      limit: 100,
-    );
-  }
+  Future<List<Map<String, Object?>>> products(String q) => q.trim().isEmpty
+    ? db.query('products', orderBy: 'name COLLATE NOCASE')
+    : db.query(
+        'products',
+        where: 'name LIKE ? OR code LIKE ? OR barcode LIKE ?',
+        whereArgs: [
+          '%${q.trim()}%',
+          '%${q.trim()}%',
+          '%${q.trim()}%',
+        ],
+        orderBy: 'name COLLATE NOCASE',
+      );
 
   Future<List<Map<String, Object?>>> members() =>
       db.query('members', orderBy: 'name COLLATE NOCASE');
@@ -629,6 +630,18 @@ final ImagePicker _imagePicker = ImagePicker();
 String? selectedProductImagePath;
 final code = TextEditingController();
 final barcode = TextEditingController();
+final barcode2 = TextEditingController();
+final barcode3 = TextEditingController();
+final unit1 = TextEditingController(text: 'PCS');
+final unit2 = TextEditingController();
+final unit2Qty = TextEditingController(text: '1');
+final unit3 = TextEditingController();
+final unit3Qty = TextEditingController(text: '1');
+final priceLarge = TextEditingController(text: '0');
+final memberPriceCtrls = <String, TextEditingController>{
+  for (final t in ['Toko','Kantor','Sales','Pribadi'])
+    for (final u in ['kecil','sedang','besar']) '$t-$u': TextEditingController(text: '0'),
+};
 final category = TextEditingController();
 final name = TextEditingController();
   final cost = TextEditingController(text: '0');
@@ -705,7 +718,7 @@ int dailyExpenseTotal = 0;
   void initState() {
     super.initState();
     _now = DateTime.now();
-    _clockTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
     refreshAll();
@@ -717,7 +730,7 @@ int dailyExpenseTotal = 0;
     _clockTimer?.cancel();
     _searchTimer?.cancel();
     for (final controller in [
-      search, scanCode, scanQty, code, barcode, category, name, cost, price, middlePrice, qty, stock,
+      search, scanCode, scanQty, code, barcode, barcode2, barcode3, unit1, unit2, unit2Qty, unit3, unit3Qty, priceLarge, ...memberPriceCtrls.values, category, name, cost, price, middlePrice, qty, stock,
       cashier, branch, memberCode, memberName, phone, discount,
       level, txnDiscount, cash,
 expenseDescription, expenseAmount,
@@ -734,37 +747,34 @@ expenseDescription, expenseAmount,
     }
   }
 
-  Future<void> refreshProductsOnly() async {
-    final requestedQuery = search.text;
-    final products = await KasirDB.instance.products(requestedQuery);
-    if (!mounted || requestedQuery != search.text) return;
-    setState(() => ps = products);
-  }
-
   Future<void> refreshAll() async {
     final db = KasirDB.instance;
-    final requestedQuery = search.text;
-    final results = await Future.wait([
-      db.products(requestedQuery),
-      db.members(),
-      db.transactions(),
-    ]);
-    if (!mounted || requestedQuery != search.text) return;
+    final products = await db.products(search.text);
+    final members = await db.members();
+    final transactions = await db.transactions();
+    if (!mounted) return;
     setState(() {
-      ps = results[0] as List<Map<String, Object?>>;
-      ms = results[1] as List<Map<String, Object?>>;
-      txRows = results[2] as List<Map<String, Object?>>;
+      ps = products;
+      ms = members;
+      txRows = transactions;
       _repriceCart();
     });
   }
 
   void searchChanged(String _) {
     _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 300), refreshProductsOnly);
+    _searchTimer = Timer(const Duration(milliseconds: 250), refreshAll);
   }
 
   int _memberUnitPrice(Map<String, Object?> product) {
-    final base = (product['member_price'] as int?) ?? (product['price'] as int);
+    final legacy = (product['member_price'] as int?) ?? (product['price'] as int);
+    var base = legacy;
+    final type = (selectedMember?['price_level'] ?? '').toString();
+    try {
+      final prices = jsonDecode((product['member_prices'] ?? '{}').toString()) as Map;
+      final configured = prices['$type-kecil'];
+      if (configured is num && configured > 0) base = configured.toInt();
+    } catch (_) {}
     final percent = (selectedMember?['discount_percent'] as num?)?.toDouble() ?? 0;
     return (base * (1 - percent / 100)).round().clamp(0, 1 << 62).toInt();
   }
@@ -813,6 +823,8 @@ expenseDescription, expenseAmount,
     if (value.isEmpty) return;
     final matches = ps.where((p) =>
       '${p['barcode']}'.trim() == value ||
+      '${p['barcode2'] ?? ''}'.trim() == value ||
+      '${p['barcode3'] ?? ''}'.trim() == value ||
       '${p['code']}'.trim().toLowerCase() == value.toLowerCase()
     ).toList();
     if (matches.isEmpty) {
@@ -1108,10 +1120,19 @@ Future<void> removeExpense(Map<String, Object?> expense) async {
       )['image_key'] ?? '').toString(),
 );
       }
+      await KasirDB.instance.db.update('products', {
+        'barcode2': barcode2.text.trim(), 'barcode3': barcode3.text.trim(),
+        'unit': unit1.text.trim().isEmpty ? 'PCS' : unit1.text.trim(),
+        'unit2': unit2.text.trim(), 'unit2_qty': int.tryParse(unit2Qty.text) ?? 1,
+        'unit3': unit3.text.trim(), 'unit3_qty': int.tryParse(unit3Qty.text) ?? 1,
+        'sales_price': int.tryParse(middlePrice.text) ?? 0,
+        'special_price': int.tryParse(priceLarge.text) ?? 0,
+        'member_prices': jsonEncode({for (final e in memberPriceCtrls.entries) e.key: int.tryParse(e.value.text) ?? 0}),
+      }, where: 'code = ?', whereArgs: [code.text.trim()]);
       editingProductId = null;
 selectedProductImagePath = null;
 code.clear();
-barcode.clear();
+barcode.clear(); barcode2.clear(); barcode3.clear(); unit1.text='PCS'; unit2.clear(); unit2Qty.text='1'; unit3.clear(); unit3Qty.text='1'; priceLarge.text='0'; for (final c in memberPriceCtrls.values) { c.text='0'; }
 category.clear();
 name.clear();
 cost.text = '0';
@@ -2176,6 +2197,22 @@ TextField(
   decoration: const InputDecoration(labelText: 'Barcode / ISBN (opsional)'),
 ),
 const SizedBox(height: 8),
+TextField(controller: barcode2, decoration: const InputDecoration(labelText: 'Barcode sedang (opsional)')),
+const SizedBox(height: 8),
+TextField(controller: barcode3, decoration: const InputDecoration(labelText: 'Barcode besar (opsional)')),
+const SizedBox(height: 12),
+titleSection('Satuan dan isi', subtitle: 'Isi menunjukkan konversi ke satuan sebelumnya'),
+TextField(controller: unit1, decoration: const InputDecoration(labelText: 'Satuan kecil')),
+const SizedBox(height: 8),
+TextField(controller: unit2, decoration: const InputDecoration(labelText: 'Satuan sedang')),
+const SizedBox(height: 8),
+TextField(controller: unit2Qty, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Isi sedang (berapa satuan kecil)')),
+const SizedBox(height: 8),
+TextField(controller: unit3, decoration: const InputDecoration(labelText: 'Satuan besar')),
+const SizedBox(height: 8),
+TextField(controller: unit3Qty, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Isi besar (berapa satuan sedang)')),
+const SizedBox(height: 12),
+titleSection('Harga non-member', subtitle: 'Harga umum untuk pelanggan tanpa member'),
 TextField(
   controller: category,
   decoration: const InputDecoration(labelText: 'Kategori barang (opsional)'),
@@ -2191,6 +2228,18 @@ TextField(controller: name, decoration: const InputDecoration(labelText: 'Nama b
     const SizedBox(height: 8),
     TextField(controller: middlePrice, keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Harga satuan tengah (Rp)')),
+    const SizedBox(height: 8),
+    TextField(controller: priceLarge, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga ecer besar (Rp)')),
+    const SizedBox(height: 12),
+    titleSection('Harga member', subtitle: 'Isi harga tiap tipe member dan tiap satuan'),
+    ...['Toko','Kantor','Sales','Pribadi'].expand((t) => [
+      Padding(padding: const EdgeInsets.only(top: 12, bottom: 6), child: Text('Member $t', style: const TextStyle(fontWeight: FontWeight.bold))),
+      TextField(controller: memberPriceCtrls['$t-kecil'], keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga kecil (Rp)')),
+      const SizedBox(height: 6),
+      TextField(controller: memberPriceCtrls['$t-sedang'], keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga sedang (Rp)')),
+      const SizedBox(height: 6),
+      TextField(controller: memberPriceCtrls['$t-besar'], keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Harga besar (Rp)')),
+    ]),
     const SizedBox(height: 8),
     TextField(controller: qty, keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Isi satuan tengah (pcs)')),
