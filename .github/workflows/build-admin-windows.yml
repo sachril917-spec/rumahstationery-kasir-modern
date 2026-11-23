@@ -1,0 +1,65 @@
+name: Build Admin Server Windows
+
+on:
+  workflow_run:
+    workflows:
+      - Build APK Admin Server ADL
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Windows runner
+        working-directory: admin_windows
+        run: flutter create --platforms=windows --project-name admin_server .
+
+      - name: Install dependencies
+        working-directory: admin_windows
+        run: flutter pub get
+
+      - name: Build Admin Windows
+        working-directory: admin_windows
+        run: flutter build windows --release --build-number ${{ github.event.workflow_run.run_number || github.run_number }}
+
+      - name: Package Windows application
+        shell: pwsh
+        run: |
+          $source = "admin_windows/build/windows/x64/runner/Release"
+          if (!(Test-Path "$source/admin_server.exe")) { throw "admin_server.exe tidak ditemukan." }
+          Compress-Archive -Path "$source/*" -DestinationPath "ADL-Admin-Server-Windows.zip" -Force
+          if (!(Test-Path "ADL-Admin-Server-Windows.zip")) { throw "ZIP Windows gagal dibuat." }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ADL-Admin-Server-Windows
+          path: ADL-Admin-Server-Windows.zip
+          retention-days: 30
+
+      - name: Attach Windows update to Admin Release
+        if: github.event_name == 'workflow_run'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "admin-build-${{ github.event.workflow_run.run_number }}"
+          gh release upload $tag "ADL-Admin-Server-Windows.zip" --repo "$env:GITHUB_REPOSITORY" --clobber
