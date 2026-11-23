@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() => runApp(const AdlAdminApp());
 const api = 'https://rumah-stationery-api.sachril917.workers.dev';
@@ -25,6 +26,8 @@ class AdminHome extends StatefulWidget {
  @override State<AdminHome> createState()=>_AdminHomeState();
 }
 class _AdminHomeState extends State<AdminHome>{
+ static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+ static const String _adminKeyStorageName = 'adl_admin_api_key';
  int selected=0; String keyAdmin='',search=''; bool loading=false; String? error;
  Map<String,dynamic>? overview; List<dynamic> products=[],sales=[]; DateTime date=DateTime.now();
 List<dynamic> receipts = [];
@@ -35,14 +38,67 @@ final notesController = TextEditingController();
 String? receiptProductId;
  String get day=>'${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
  Map<String,String> get headers=>{'Authorization':'Bearer $keyAdmin','Content-Type':'application/json'};
- @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>enterKey());}
+ @override void initState(){
+  super.initState();
+  WidgetsBinding.instance.addPostFrameCallback((_)=>_restoreAdminKey());
+ }
+
+ Future<void> _restoreAdminKey() async {
+  try {
+   final saved = await _secureStorage.read(key: _adminKeyStorageName);
+   if (!mounted) return;
+   if (saved == null || saved.isEmpty) {
+    await enterKey();
+    return;
+   }
+
+   setState(() { keyAdmin = saved; loading = true; error = null; });
+   try {
+    final result = await callApi('GET', '/admin/overview?date=$day');
+    if (mounted) setState(() { overview = result; error = null; });
+   } catch (e) {
+    if (mounted) setState(() {
+     error = 'Kunci tersimpan belum dapat digunakan atau server tidak dapat dijangkau: ${e.toString().replaceFirst('Exception: ', '')}';
+    });
+   } finally {
+    if (mounted) setState(() => loading = false);
+   }
+  } catch (e) {
+   if (mounted) setState(() {
+    error = 'Tidak dapat membaca penyimpanan kunci Admin: $e';
+   });
+   if (mounted) await enterKey();
+  }
+ }
+
  Future<void> enterKey() async{
   final c=TextEditingController(text:keyAdmin);
   final v=await showDialog<String>(context:context,barrierDismissible:false,builder:(d)=>AlertDialog(
    title:const Text('Kunci Admin Server'),content:TextField(controller:c,obscureText:true,
    decoration:const InputDecoration(labelText:'ADMIN_API_KEY')),
    actions:[FilledButton(onPressed:()=>Navigator.pop(d,c.text.trim()),child:const Text('Hubungkan'))]));
-  c.dispose();if(v==null||v.isEmpty)return;setState(()=>keyAdmin=v);await loadOverview();
+  c.dispose();
+  if(v==null||v.isEmpty)return;
+
+  final previousKey = keyAdmin;
+  if (mounted) setState(() { keyAdmin = v; loading = true; error = null; });
+  try {
+   final result = await callApi('GET', '/admin/overview?date=$day');
+   await _secureStorage.write(key: _adminKeyStorageName, value: v);
+   if (mounted) setState(() { overview = result; error = null; });
+  } catch (e) {
+   if (mounted) setState(() {
+    keyAdmin = previousKey;
+    error = 'Gagal menghubungkan Admin: ${e.toString().replaceFirst('Exception: ', '')}';
+   });
+   if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+     SnackBar(content: Text(error ?? 'Gagal menghubungkan Admin.')),
+    );
+   }
+  } finally {
+   if (mounted) setState(() => loading = false);
+  }
  }
  Future<Map<String,dynamic>> callApi(String method,String path,[Map<String,dynamic>? body])async{
   final u=Uri.parse('$api$path');late http.Response r;
