@@ -4,6 +4,6 @@ main = "server/worker.js"
 compatibility_date = "2026-10-15"
 
 [[d1_databases]]
-binding = "DB"
-database_name = "rumah-stationery-kasir-db"
-database_id = "ISI_DATABASE_ID"
+binding = "DB_RUMAH_STATIONERY"
+database_name = "rumah-stationery-pusat"
+database_id = "ISI_ID_DATABASE_D1_KAMU"
