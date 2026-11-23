@@ -44,7 +44,7 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
-            - name: Tentukan versi sebelum build
+      - name: Tentukan versi sebelum build
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
