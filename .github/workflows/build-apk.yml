@@ -2,7 +2,7 @@ name: Build Rumah Stationery Kasir APK
 
 on:
   workflow_dispatch:
-    push:
+  push:
     branches:
       - main
     paths:
@@ -11,6 +11,7 @@ on:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'analysis_options.yaml'
+      - '.github/workflows/build-android.yml'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -43,7 +44,7 @@ jobs:
       - name: Buat platform Android
         run: flutter create --platforms=android .
 
-      - name: Tentukan versi sebelum build
+            - name: Tentukan versi sebelum build
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,7 +52,9 @@ jobs:
           set -e
 
           REPO="${GITHUB_REPOSITORY}"
-          LATEST_TAG="$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName // empty')"
+
+          # Ambil hanya tag versi angka, abaikan tag admin-build dan lainnya.
+          LATEST_TAG="$(gh release list --repo "$REPO" --limit 100 --json tagName --jq '[.[] | select(.tagName | test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))][0].tagName // empty')"
 
           if [ -z "$LATEST_TAG" ]; then
             BASE_VERSION="$(sed -n 's/^version: *//p' pubspec.yaml | head -n 1 | cut -d '+' -f 1)"
