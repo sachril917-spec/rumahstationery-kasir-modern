@@ -9,7 +9,7 @@ on:
       - '.github/workflows/build-admin-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -116,13 +116,14 @@ jobs:
               count=1
           )
 
-          if "android.permission.INTERNET" not in t:
-              t = t.replace(
-                  "<application",
-                  '    <uses-permission android:name="android.permission.INTERNET"/>\n    <application',
-                  1
-              )
-
+          for permission in ["android.permission.INTERNET", "android.permission.REQUEST_INSTALL_PACKAGES"]:
+              marker = f'android:name="{permission}"'
+              if marker not in t:
+                  t = t.replace(
+                      "<application",
+                      f'    <uses-permission android:name="{permission}"/>\n    <application',
+                      1
+                  )
           m.write_text(t)
           PY
 
@@ -138,7 +139,7 @@ jobs:
           SIGN_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
-          flutter build apk --release --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64 --build-number ${{ github.run_number }}
 
       - name: Periksa APK
         run: |
@@ -157,6 +158,16 @@ jobs:
           name: ADL-Admin-Server
           path: output/ADL-Admin-Server.apk
           retention-days: 30
+
+      - name: Terbitkan update Admin otomatis
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="admin-build-${{ github.run_number }}"
+          gh release create "$TAG" "output/ADL-Admin-Server.apk#ADL-Admin-Server.apk" \
+            --title "ADL Admin Server build ${{ github.run_number }}" \
+            --notes "Update otomatis dari build GitHub Actions yang berhasil."
 
       - name: Bersihkan kunci sementara
         if: always()
