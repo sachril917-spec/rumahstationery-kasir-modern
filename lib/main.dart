@@ -1443,7 +1443,8 @@ Widget productPhoto(
 }
 
   Widget cashierPage() => LayoutBuilder(builder: (context, constraints) {
-    final compact = constraints.maxHeight < 650;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final compact = constraints.maxHeight < 650 || keyboardOpen;
     final hasCart = cart.isNotEmpty;
 
     return Column(
@@ -1551,10 +1552,11 @@ Widget productPhoto(
                       itemBuilder: (context, index) {
                         final item = ps[index];
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                          minVerticalPadding: 5,
                           title: Text(
                             '${item['name']}',
-                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                            style: const TextStyle(fontSize: 17, height: 1.1, fontWeight: FontWeight.w800),
                           ),
                           subtitle: Text(
                             'Kode: ${item['code'] ?? '-'}  •  Stok: ${item['stock'] ?? 0}',
@@ -1827,7 +1829,9 @@ Widget productPhoto(
                     ),
         ),
 
-        // Informasi transaksi dan pembayaran tetap berada di bawah.
+        // Saat keyboard terbuka, sembunyikan panel pembayaran sementara
+        // agar daftar barang tetap mendapat ruang dan bisa dipilih.
+        if (!keyboardOpen)
         Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -2689,7 +2693,9 @@ if (checkingUpdate || downloadingUpdate || updateStatus.isNotEmpty) ...[
     ],
   ),
 ),
-    bottomNavigationBar: NavigationBar(
+    bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+        ? null
+        : NavigationBar(
       selectedIndex: tab,
       onDestinationSelected: (v) => setState(() => tab = v),
       destinations: const [
