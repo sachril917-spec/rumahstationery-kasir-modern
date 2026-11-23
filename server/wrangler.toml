@@ -6,4 +6,4 @@ compatibility_date = "2026-10-15"
 [[d1_databases]]
 binding = "DB_RUMAH_STATIONERY"
 database_name = "rumah-stationery-pusat"
-database_id = "ISI_ID_DATABASE_D1_KAMU"
+database_id = "1676e424-a31f-41d7-88de-e11ef005e6db"
