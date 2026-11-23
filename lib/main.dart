@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
@@ -36,7 +37,7 @@ class KasirDB {
   Future<void> init() async {
     db = await openDatabase(
       p.join(await getDatabasesPath(), 'rumah_stationery.db'),
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         await db.execute('''CREATE TABLE products(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -46,7 +47,16 @@ class KasirDB {
 stock INTEGER NOT NULL,
 barcode TEXT NOT NULL DEFAULT '',
 category TEXT NOT NULL DEFAULT '',
-image_key TEXT NOT NULL DEFAULT ''
+image_key TEXT NOT NULL DEFAULT '',
+unit TEXT NOT NULL DEFAULT 'PCS',
+unit2 TEXT NOT NULL DEFAULT '',
+unit2_qty INTEGER NOT NULL DEFAULT 1,
+unit3 TEXT NOT NULL DEFAULT '',
+unit3_qty INTEGER NOT NULL DEFAULT 1,
+sales_price INTEGER NOT NULL DEFAULT 0,
+special_price INTEGER NOT NULL DEFAULT 0,
+supplier_code TEXT NOT NULL DEFAULT '',
+discount INTEGER NOT NULL DEFAULT 0
 )''');
         await db.execute('''CREATE TABLE members(
           id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -127,8 +137,69 @@ if (oldVersion < 6) {
     "ALTER TABLE products ADD COLUMN image_key TEXT NOT NULL DEFAULT ''"
   );
 }
+        if (oldVersion < 7) {
+          for (final sql in [
+            "ALTER TABLE products ADD COLUMN unit TEXT NOT NULL DEFAULT 'PCS'",
+            "ALTER TABLE products ADD COLUMN unit2 TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN unit2_qty INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE products ADD COLUMN unit3 TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN unit3_qty INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE products ADD COLUMN sales_price INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN special_price INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN supplier_code TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN discount INTEGER NOT NULL DEFAULT 0",
+          ]) {
+            await db.execute(sql);
+          }
+        }
       },
     );
+    await importExcelMasterIfNeeded();
+  }
+
+  Future<void> importExcelMasterIfNeeded() async {
+    final marker = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='app_imports'"
+    );
+    if (marker.isEmpty) {
+      await db.execute("CREATE TABLE app_imports(name TEXT PRIMARY KEY, imported_at TEXT NOT NULL, row_count INTEGER NOT NULL)");
+    }
+    final done = await db.query('app_imports', where: 'name = ?', whereArgs: ['DATA_ADL_BARU_V1']);
+    if (done.isNotEmpty) return;
+
+    final raw = await rootBundle.loadString('assets/data_adl_baru.json');
+    final List<dynamic> rows = jsonDecode(raw) as List<dynamic>;
+    await db.transaction((txn) async {
+      for (final item in rows) {
+        final r = Map<String, dynamic>.from(item as Map);
+        final existing = await txn.query('products', columns: ['id', 'stock'], where: 'code = ?', whereArgs: [r['code']], limit: 1);
+        final values = <String, Object?>{
+          'code': r['code'], 'name': r['name'],
+          'cost_price': r['cost_price'], 'price': r['price'],
+          'middle_price': r['middle_price'], 'middle_qty': r['middle_qty'],
+          'member_price': r['member_price'], 'barcode': r['barcode'],
+          'category': r['category'], 'unit': r['unit'],
+          'unit2': r['unit2'], 'unit2_qty': r['unit2_qty'],
+          'unit3': r['unit3'], 'unit3_qty': r['unit3_qty'],
+          'sales_price': r['sales_price'], 'special_price': r['special_price'],
+          'supplier_code': r['supplier_code'], 'discount': r['discount'],
+        };
+        if (existing.isEmpty) {
+          values['id'] = uuid.v4();
+          values['stock'] = 0; // Excel tidak memiliki kolom stok.
+          values['image_key'] = '';
+          await txn.insert('products', values);
+        } else {
+          // Perbarui master dan harga; stok cabang yang sudah ada tidak disentuh.
+          await txn.update('products', values, where: 'id = ?', whereArgs: [existing.first['id']]);
+        }
+      }
+      await txn.insert('app_imports', {
+        'name': 'DATA_ADL_BARU_V1',
+        'imported_at': DateTime.now().toIso8601String(),
+        'row_count': rows.length,
+      });
+    });
   }
 
   Future<void> _seed(Database db) async {
