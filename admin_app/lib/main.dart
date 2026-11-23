@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 
 void main() => runApp(const AdlAdminApp());
 const api = 'https://rumah-stationery-api.sachril917.workers.dev';
@@ -219,6 +223,48 @@ Future<void> saveGoodsReceipt() async {
    final x=await callApi('GET','/admin/products');if(mounted){setState(()=>products=(x['products'] as List?)??[]);
    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(editing?'Barang diperbarui':'Barang ditambahkan')));}});
  }
+
+ bool updatingAdmin = false;
+ Future<void> updateAdminApk() async {
+  if (updatingAdmin) return;
+  setState(() => updatingAdmin = true);
+  try {
+   final check = await http.get(
+    Uri.parse('https://api.github.com/repos/sachril917-spec/rumahstationery-kasir-modern/releases?per_page=100'),
+    headers: {'Accept': 'application/vnd.github+json'},
+   ).timeout(const Duration(seconds: 30));
+   if (check.statusCode != 200) throw Exception('Gagal memeriksa update GitHub (HTTP ${check.statusCode}).');
+   final releases = jsonDecode(check.body) as List<dynamic>;
+   final admin = releases.where((e) => RegExp(r'^admin-build-\d+$').hasMatch('${e['tag_name']}') && e['draft'] != true).toList();
+   if (admin.isEmpty) throw Exception('Belum ada update Admin yang diterbitkan.');
+   admin.sort((a,b) => int.parse('${b['tag_name']}'.replaceFirst('admin-build-', '')).compareTo(int.parse('${a['tag_name']}'.replaceFirst('admin-build-', ''))));
+   final latest = admin.first as Map<String,dynamic>;
+   final latestBuild = int.parse('${latest['tag_name']}'.replaceFirst('admin-build-', ''));
+   final info = await PackageInfo.fromPlatform();
+   final installedBuild = int.tryParse(info.buildNumber) ?? 0;
+   if (latestBuild <= installedBuild) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Admin sudah menggunakan versi terbaru.')));
+    return;
+   }
+   final assets = latest['assets'] as List<dynamic>? ?? [];
+   final matches = assets.where((a) => a['name'] == 'ADL-Admin-Server.apk').toList();
+   if (matches.isEmpty) throw Exception('File APK pada Release tidak ditemukan.');
+   final url = matches.first['browser_download_url'] as String;
+   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update build $latestBuild tersedia. Mengunduh...')));
+   final response = await http.get(Uri.parse(url)).timeout(const Duration(minutes: 3));
+   if (response.statusCode != 200 || response.bodyBytes.isEmpty) throw Exception('Gagal mengunduh APK.');
+   final dir = await getTemporaryDirectory();
+   final file = File('${dir.path}/ADL-Admin-Server-update.apk');
+   await file.writeAsBytes(response.bodyBytes, flush: true);
+   final result = await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
+   if (result.type != ResultType.done) throw Exception('APK terunduh, tetapi installer tidak terbuka: ${result.message}');
+  } catch (e) {
+   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update gagal: ${e.toString().replaceFirst('Exception: ', '')}')));
+  } finally {
+   if (mounted) setState(() => updatingAdmin = false);
+  }
+ }
+
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(menus[selected].$1.toUpperCase()),actions:[
    IconButton(onPressed:enterKey,icon:const Icon(Icons.key),tooltip:'Ganti kunci Admin'),
@@ -246,6 +292,13 @@ Future<void> saveGoodsReceipt() async {
 }
  Widget dashboard()=>RefreshIndicator(onRefresh:loadOverview,child:ListView(padding:const EdgeInsets.all(16),children:[
   const Text('Dashboard Pusat ADL',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const Text('Ringkasan data dari Cloudflare D1'),
+   Card(child: ListTile(
+    leading: const Icon(Icons.system_update_alt, color: Color(0xFF1769AA)),
+    title: const Text('Update Admin Server', style: TextStyle(fontWeight: FontWeight.bold)),
+    subtitle: const Text('Periksa dan pasang update terbaru'),
+    trailing: updatingAdmin ? const SizedBox(width:24,height:24,child:CircularProgressIndicator(strokeWidth:2)) : const Icon(Icons.download),
+    onTap: updatingAdmin ? null : updateAdminApk,
+   )), 
   OutlinedButton.icon(onPressed:chooseDate,icon:const Icon(Icons.calendar_month),label:Text('Tanggal: $day')),
   if(loading)const LinearProgressIndicator(),if(error!=null)errorCard(),
   if(overview!=null)...[stat('${overview!['products']??0}','Master Barang'),stat('${overview!['total_stock']??0}','Total Stok'),
