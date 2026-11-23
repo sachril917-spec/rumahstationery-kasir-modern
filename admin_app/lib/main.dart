@@ -40,6 +40,7 @@ final quantityController = TextEditingController();
 final costController = TextEditingController();
 final notesController = TextEditingController();
 String? receiptProductId;
+final adminKeyController = TextEditingController();
  String get day=>'${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
  Map<String,String> get headers=>{'Authorization':'Bearer $keyAdmin','Content-Type':'application/json'};
  @override void initState(){
@@ -52,11 +53,11 @@ String? receiptProductId;
    final saved = await _secureStorage.read(key: _adminKeyStorageName);
    if (!mounted) return;
    if (saved == null || saved.isEmpty) {
-    await enterKey();
+    if (mounted) setState(() { selected = 16; loading = false; });
     return;
    }
 
-   setState(() { keyAdmin = saved; loading = true; error = null; });
+   setState(() { keyAdmin = saved; adminKeyController.text = saved; loading = true; error = null; });
    try {
     final result = await callApi('GET', '/admin/overview?date=$day');
     if (mounted) setState(() { overview = result; error = null; });
@@ -75,35 +76,41 @@ String? receiptProductId;
   }
  }
 
- Future<void> enterKey() async{
-  final c=TextEditingController(text:keyAdmin);
-  final v=await showDialog<String>(context:context,barrierDismissible:false,builder:(d)=>AlertDialog(
-   title:const Text('Kunci Admin Server'),content:TextField(controller:c,obscureText:true,
-   decoration:const InputDecoration(labelText:'ADMIN_API_KEY')),
-   actions:[FilledButton(onPressed:()=>Navigator.pop(d,c.text.trim()),child:const Text('Hubungkan'))]));
-  c.dispose();
-  if(v==null||v.isEmpty)return;
+ Future<void> enterKey() async {
+  if (!mounted) return;
+  setState(() {
+    selected = 16;
+    adminKeyController.text = keyAdmin;
+  });
+ }
 
-  final previousKey = keyAdmin;
-  if (mounted) setState(() { keyAdmin = v; loading = true; error = null; });
+ Future<void> saveAdminKey() async {
+  final v = adminKeyController.text.trim();
+  if (v.isEmpty) {
+    setState(() => error = 'ADMIN_API_KEY belum diisi.');
+    return;
+  }
+  final old = keyAdmin;
+  setState(() { keyAdmin = v; loading = true; error = null; });
   try {
-   final result = await callApi('GET', '/admin/overview?date=$day');
-   await _secureStorage.write(key: _adminKeyStorageName, value: v);
-   if (mounted) setState(() { overview = result; error = null; });
-  } catch (e) {
-   if (mounted) setState(() {
-    keyAdmin = previousKey;
-    error = 'Gagal menghubungkan Admin: ${e.toString().replaceFirst('Exception: ', '')}';
-   });
-   if (mounted) {
+    final result = await callApi('GET', '/admin/overview?date=$day');
+    await _secureStorage.write(key: _adminKeyStorageName, value: v);
+    if (!mounted) return;
+    setState(() { overview = result; selected = 0; error = null; });
     ScaffoldMessenger.of(context).showSnackBar(
-     SnackBar(content: Text(error ?? 'Gagal menghubungkan Admin.')),
+      const SnackBar(content: Text('Kunci Admin tersimpan. Selanjutnya aplikasi masuk otomatis.')),
     );
-   }
+  } catch (e) {
+    if (!mounted) return;
+    setState(() {
+      keyAdmin = old;
+      error = 'Gagal menyimpan/menguji kunci: ${e.toString().replaceFirst('Exception: ', '')}';
+    });
   } finally {
-   if (mounted) setState(() => loading = false);
+    if (mounted) setState(() => loading = false);
   }
  }
+
  Future<Map<String,dynamic>> callApi(String method,String path,[Map<String,dynamic>? body])async{
   final u=Uri.parse('$api$path');late http.Response r;
   if(method=='GET'){r=await http.get(u,headers:headers).timeout(const Duration(seconds:30));}
@@ -274,6 +281,7 @@ Future<void> saveGoodsReceipt() async {
    for(var i=0;i<menus.length;i++)NavigationDrawerDestination(icon:Icon(menus[i].$2),label:Text(menus[i].$1))]),
   body:page());
  Widget page() {
+  if (selected == 16) return settingsPage();
   if (selected == 0) return dashboard();
   if (selected == 4) return productPage();
   if (selected == 5) return goodsReceiptPage();
@@ -290,6 +298,42 @@ Future<void> saveGoodsReceipt() async {
     ),
   );
 }
+ Widget settingsPage() => ListView(
+  padding: const EdgeInsets.all(16),
+  children: [
+    const Text('PENGATURAN SERVER', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+    const SizedBox(height: 8),
+    const Text('Kunci Admin disimpan aman di perangkat. Setelah tersimpan, aplikasi akan langsung masuk ke Dashboard saat dibuka kembali.'),
+    const SizedBox(height: 16),
+    TextField(
+      controller: adminKeyController,
+      obscureText: true,
+      decoration: const InputDecoration(
+        labelText: 'ADMIN_API_KEY',
+        helperText: 'Masukkan kunci dari Cloudflare Worker',
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 12),
+    FilledButton.icon(
+      onPressed: loading ? null : saveAdminKey,
+      icon: const Icon(Icons.save),
+      label: const Text('SIMPAN & HUBUNGKAN'),
+    ),
+    if (loading) const LinearProgressIndicator(),
+    if (error != null) errorCard(),
+    const SizedBox(height: 12),
+    OutlinedButton.icon(
+      onPressed: () async {
+        await _secureStorage.delete(key: _adminKeyStorageName);
+        if (!mounted) return;
+        setState(() { keyAdmin = ''; adminKeyController.clear(); error = 'Kunci Admin dihapus dari perangkat.'; });
+      },
+      icon: const Icon(Icons.delete_outline),
+      label: const Text('HAPUS KUNCI TERSIMPAN'),
+    ),
+  ],
+ );
  Widget dashboard()=>RefreshIndicator(onRefresh:loadOverview,child:ListView(padding:const EdgeInsets.all(16),children:[
   const Text('Dashboard Pusat ADL',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const Text('Ringkasan data dari Cloudflare D1'),
    Card(child: ListTile(
