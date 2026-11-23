@@ -40,7 +40,6 @@ final quantityController = TextEditingController();
 final costController = TextEditingController();
 final notesController = TextEditingController();
 String? receiptProductId;
-final adminKeyController = TextEditingController();
  String get day=>'${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}';
  Map<String,String> get headers=>{'Authorization':'Bearer $keyAdmin','Content-Type':'application/json'};
  @override void initState(){
@@ -53,11 +52,11 @@ final adminKeyController = TextEditingController();
    final saved = await _secureStorage.read(key: _adminKeyStorageName);
    if (!mounted) return;
    if (saved == null || saved.isEmpty) {
-    if (mounted) setState(() { selected = 16; loading = false; });
+    await enterKey();
     return;
    }
 
-   setState(() { keyAdmin = saved; adminKeyController.text = saved; loading = true; error = null; });
+   setState(() { keyAdmin = saved; loading = true; error = null; });
    try {
     final result = await callApi('GET', '/admin/overview?date=$day');
     if (mounted) setState(() { overview = result; error = null; });
@@ -76,41 +75,35 @@ final adminKeyController = TextEditingController();
   }
  }
 
- Future<void> enterKey() async {
-  if (!mounted) return;
-  setState(() {
-    selected = 16;
-    adminKeyController.text = keyAdmin;
-  });
- }
+ Future<void> enterKey() async{
+  final c=TextEditingController(text:keyAdmin);
+  final v=await showDialog<String>(context:context,barrierDismissible:false,builder:(d)=>AlertDialog(
+   title:const Text('Kunci Admin Server'),content:TextField(controller:c,obscureText:true,
+   decoration:const InputDecoration(labelText:'ADMIN_API_KEY')),
+   actions:[FilledButton(onPressed:()=>Navigator.pop(d,c.text.trim()),child:const Text('Hubungkan'))]));
+  c.dispose();
+  if(v==null||v.isEmpty)return;
 
- Future<void> saveAdminKey() async {
-  final v = adminKeyController.text.trim();
-  if (v.isEmpty) {
-    setState(() => error = 'ADMIN_API_KEY belum diisi.');
-    return;
-  }
-  final old = keyAdmin;
-  setState(() { keyAdmin = v; loading = true; error = null; });
+  final previousKey = keyAdmin;
+  if (mounted) setState(() { keyAdmin = v; loading = true; error = null; });
   try {
-    final result = await callApi('GET', '/admin/overview?date=$day');
-    await _secureStorage.write(key: _adminKeyStorageName, value: v);
-    if (!mounted) return;
-    setState(() { overview = result; selected = 0; error = null; });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Kunci Admin tersimpan. Selanjutnya aplikasi masuk otomatis.')),
-    );
+   final result = await callApi('GET', '/admin/overview?date=$day');
+   await _secureStorage.write(key: _adminKeyStorageName, value: v);
+   if (mounted) setState(() { overview = result; error = null; });
   } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      keyAdmin = old;
-      error = 'Gagal menyimpan/menguji kunci: ${e.toString().replaceFirst('Exception: ', '')}';
-    });
+   if (mounted) setState(() {
+    keyAdmin = previousKey;
+    error = 'Gagal menghubungkan Admin: ${e.toString().replaceFirst('Exception: ', '')}';
+   });
+   if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+     SnackBar(content: Text(error ?? 'Gagal menghubungkan Admin.')),
+    );
+   }
   } finally {
-    if (mounted) setState(() => loading = false);
+   if (mounted) setState(() => loading = false);
   }
  }
-
  Future<Map<String,dynamic>> callApi(String method,String path,[Map<String,dynamic>? body])async{
   final u=Uri.parse('$api$path');late http.Response r;
   if(method=='GET'){r=await http.get(u,headers:headers).timeout(const Duration(seconds:30));}
@@ -253,56 +246,18 @@ Future<void> saveGoodsReceipt() async {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Admin sudah menggunakan versi terbaru.')));
     return;
    }
-   final assetName = Platform.isWindows ? 'ADL-Admin-Server-Windows.zip' : 'ADL-Admin-Server.apk';
    final assets = latest['assets'] as List<dynamic>? ?? [];
-   final matches = assets.where((a) => a['name'] == assetName).toList();
-   if (matches.isEmpty) throw Exception('File $assetName belum tersedia pada Release.');
+   final matches = assets.where((a) => a['name'] == 'ADL-Admin-Server.apk').toList();
+   if (matches.isEmpty) throw Exception('File APK pada Release tidak ditemukan.');
    final url = matches.first['browser_download_url'] as String;
    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update build $latestBuild tersedia. Mengunduh...')));
-   final response = await http.get(Uri.parse(url)).timeout(const Duration(minutes: 5));
-   if (response.statusCode != 200 || response.bodyBytes.isEmpty) throw Exception('Gagal mengunduh update.');
+   final response = await http.get(Uri.parse(url)).timeout(const Duration(minutes: 3));
+   if (response.statusCode != 200 || response.bodyBytes.isEmpty) throw Exception('Gagal mengunduh APK.');
    final dir = await getTemporaryDirectory();
-   if (Platform.isWindows) {
-    final zipFile = File('${dir.path}\\ADL-Admin-Server-Windows-update.zip');
-    await zipFile.writeAsBytes(response.bodyBytes, flush: true);
-    final installDir = File(Platform.resolvedExecutable).parent.path;
-    final extractDir = '${dir.path}\\adl_admin_update_${DateTime.now().millisecondsSinceEpoch}';
-    final scriptFile = File('${dir.path}\\adl_admin_apply_update.bat');
-    final script = r'''@echo off
-setlocal
-set "APPDIR=INSTALLDIR"
-set "ZIP=ZIPFILE"
-set "EXTRACT=EXTRACTDIR"
-:waitloop
-tasklist /FI "IMAGENAME eq admin_server.exe" 2>NUL | find /I "admin_server.exe" >NUL
-if not errorlevel 1 (
-  timeout /t 2 /nobreak >NUL
-  goto waitloop
-)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%ZIP%' -DestinationPath '%EXTRACT%' -Force"
-if errorlevel 1 exit /b 1
-xcopy "%EXTRACT%\\*" "%APPDIR%\\" /E /I /Y >NUL
-start "" "%APPDIR%\\admin_server.exe"
-rmdir /S /Q "%EXTRACT%"
-del "%ZIP%"
-del "%~f0"
-'''
-    finalScript = script.replace('INSTALLDIR', installDir).replace('ZIPFILE', zipFile.path).replace('EXTRACTDIR', extractDir)
-    await scriptFile.writeAsString(finalScript, flush: true);
-    await Process.start('cmd', ['/c', 'start', '', scriptFile.path],
-      mode: ProcessStartMode.detached, runInShell: true);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Update diunduh. Admin akan ditutup sebentar, diperbarui, lalu dibuka kembali.'),
-      duration: Duration(seconds: 5),
-    ));
-    await Future.delayed(const Duration(milliseconds: 800));
-    exit(0);
-   } else {
-    final file = File('${dir.path}/ADL-Admin-Server-update.apk');
-    await file.writeAsBytes(response.bodyBytes, flush: true);
-    final result = await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
-    if (result.type != ResultType.done) throw Exception('APK terunduh, tetapi installer tidak terbuka: ${result.message}');
-   }
+   final file = File('${dir.path}/ADL-Admin-Server-update.apk');
+   await file.writeAsBytes(response.bodyBytes, flush: true);
+   final result = await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
+   if (result.type != ResultType.done) throw Exception('APK terunduh, tetapi installer tidak terbuka: ${result.message}');
   } catch (e) {
    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update gagal: ${e.toString().replaceFirst('Exception: ', '')}')));
   } finally {
@@ -319,7 +274,6 @@ del "%~f0"
    for(var i=0;i<menus.length;i++)NavigationDrawerDestination(icon:Icon(menus[i].$2),label:Text(menus[i].$1))]),
   body:page());
  Widget page() {
-  if (selected == 16) return settingsPage();
   if (selected == 0) return dashboard();
   if (selected == 4) return productPage();
   if (selected == 5) return goodsReceiptPage();
@@ -336,42 +290,6 @@ del "%~f0"
     ),
   );
 }
- Widget settingsPage() => ListView(
-  padding: const EdgeInsets.all(16),
-  children: [
-    const Text('PENGATURAN SERVER', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-    const SizedBox(height: 8),
-    const Text('Kunci Admin disimpan aman di perangkat. Setelah tersimpan, aplikasi akan langsung masuk ke Dashboard saat dibuka kembali.'),
-    const SizedBox(height: 16),
-    TextField(
-      controller: adminKeyController,
-      obscureText: true,
-      decoration: const InputDecoration(
-        labelText: 'ADMIN_API_KEY',
-        helperText: 'Masukkan kunci dari Cloudflare Worker',
-        border: OutlineInputBorder(),
-      ),
-    ),
-    const SizedBox(height: 12),
-    FilledButton.icon(
-      onPressed: loading ? null : saveAdminKey,
-      icon: const Icon(Icons.save),
-      label: const Text('SIMPAN & HUBUNGKAN'),
-    ),
-    if (loading) const LinearProgressIndicator(),
-    if (error != null) errorCard(),
-    const SizedBox(height: 12),
-    OutlinedButton.icon(
-      onPressed: () async {
-        await _secureStorage.delete(key: _adminKeyStorageName);
-        if (!mounted) return;
-        setState(() { keyAdmin = ''; adminKeyController.clear(); error = 'Kunci Admin dihapus dari perangkat.'; });
-      },
-      icon: const Icon(Icons.delete_outline),
-      label: const Text('HAPUS KUNCI TERSIMPAN'),
-    ),
-  ],
- );
  Widget dashboard()=>RefreshIndicator(onRefresh:loadOverview,child:ListView(padding:const EdgeInsets.all(16),children:[
   const Text('Dashboard Pusat ADL',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),const Text('Ringkasan data dari Cloudflare D1'),
    Card(child: ListTile(
