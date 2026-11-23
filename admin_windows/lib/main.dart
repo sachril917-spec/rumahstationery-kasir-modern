@@ -33,7 +33,7 @@ class _AdminHomeState extends State<AdminHome>{
  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
  static const String _adminKeyStorageName = 'adl_admin_api_key';
  int selected=0; String keyAdmin='',search=''; bool loading=false; String? error;
- Map<String,dynamic>? overview; List<dynamic> products=[],sales=[]; DateTime date=DateTime.now();
+ Map<String,dynamic>? overview; List<dynamic> products=[],masterProducts=[],sales=[]; DateTime date=DateTime.now();
 List<dynamic> receipts = [];
 final supplierController = TextEditingController();
 final quantityController = TextEditingController();
@@ -122,7 +122,7 @@ String? receiptProductId;
   finally{if(mounted)setState(()=>loading=false);}
  }
  Future<void> loadOverview()=>busy(()async{final x=await callApi('GET','/admin/overview?date=$day');if(mounted)setState(()=>overview=x);});
- Future<void> loadProducts()=>busy(()async{final x=await callApi('GET','/admin/products');if(mounted)setState(()=>products=(x['products'] as List?)??[]);});
+ Future<void> loadProducts()=>busy(()async{final x=await callApi('GET','/admin/master-products?limit=500');if(mounted)setState(()=>masterProducts=(x['products'] as List?)??[]);});
 Future<void> loadGoodsReceipts() => busy(() async {
   final r = await Future.wait([
     callApi('GET', '/admin/products'),
@@ -201,27 +201,44 @@ Future<void> saveGoodsReceipt() async {
  Future<void> chooseDate()async{final v=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime(2100));if(v==null)return;setState(()=>date=v);if(selected==0)loadOverview();if(selected==10||selected==13)loadSales();}
  String rupiah(dynamic v){final n=(v is num?v:num.tryParse('$v')??0).round().toString();final b=StringBuffer();for(var i=0;i<n.length;i++){if(i>0&&(n.length-i)%3==0)b.write('.');b.write(n[i]);}return 'Rp $b';}
  Future<void> editProduct([Map<String,dynamic>? p])async{
-  final form=GlobalKey<FormState>();final barcode=TextEditingController(text:'${p?['barcode']??''}');
-  final name=TextEditingController(text:'${p?['name']??''}');final price=TextEditingController(text:'${p?['price']??''}');
-  final stock=TextEditingController(text:'${p?['stock']??0}');final editing=p!=null;
+  final form=GlobalKey<FormState>();
+  final fields=<String,TextEditingController>{
+   'code':TextEditingController(text:'${p?['code']??''}'),
+   'barcode':TextEditingController(text:'${p?['barcode']??''}'),
+   'name':TextEditingController(text:'${p?['name']??''}'),
+   'cost_price':TextEditingController(text:'${p?['cost_price']??0}'),
+   'price':TextEditingController(text:'${p?['price']??0}'),
+   'middle_price':TextEditingController(text:'${p?['middle_price']??0}'),
+   'middle_qty':TextEditingController(text:'${p?['middle_qty']??1}'),
+   'member_price':TextEditingController(text:'${p?['member_price']??0}'),
+   'unit':TextEditingController(text:'${p?['unit']??'PCS'}'),
+   'unit2':TextEditingController(text:'${p?['unit2']??''}'),
+   'unit2_qty':TextEditingController(text:'${p?['unit2_qty']??1}'),
+   'unit3':TextEditingController(text:'${p?['unit3']??''}'),
+   'unit3_qty':TextEditingController(text:'${p?['unit3_qty']??1}'),
+   'sales_price':TextEditingController(text:'${p?['sales_price']??0}'),
+   'special_price':TextEditingController(text:'${p?['special_price']??0}'),
+   'supplier_code':TextEditingController(text:'${p?['supplier_code']??''}'),
+   'discount':TextEditingController(text:'${p?['discount']??0}'),
+   'category':TextEditingController(text:'${p?['category']??''}'),
+  };
+  final editing=p!=null;
   final data=await showDialog<Map<String,dynamic>>(context:context,builder:(d)=>AlertDialog(
-   title:Text(editing?'Edit Barang':'Tambah Barang'),
-   content:Form(key:form,child:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    TextFormField(controller:barcode,decoration:const InputDecoration(labelText:'Barcode (opsional)')),
-    TextFormField(controller:name,decoration:const InputDecoration(labelText:'Nama barang *'),validator:(v)=>v==null||v.trim().isEmpty?'Nama wajib diisi':null),
-    TextFormField(controller:price,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Harga jual *'),
-     validator:(v){final n=double.tryParse(v??'');return n==null||n<0?'Harga tidak valid':null;}),
-    TextFormField(controller:stock,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Stok *'),
-     validator:(v){final n=int.tryParse(v??'');return n==null||n<0?'Stok harus bilangan bulat 0 atau lebih':null;})
+   title:Text(editing?'Edit Master Barang':'Tambah Master Barang'),
+   content:Form(key:form,child:SizedBox(width:460,height:520,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    for(final entry in fields.entries) Padding(padding:const EdgeInsets.only(bottom:8),child:TextFormField(controller:entry.value,
+      keyboardType: const {'cost_price','price','middle_price','middle_qty','member_price','unit2_qty','unit3_qty','sales_price','special_price','discount'}.contains(entry.key)?TextInputType.number:TextInputType.text,
+      decoration:InputDecoration(labelText:entry.key),
+      validator:(v)=>entry.key=='code'||entry.key=='name'?(v==null||v.trim().isEmpty?'Wajib diisi':null):null)),
    ])))),
    actions:[TextButton(onPressed:()=>Navigator.pop(d),child:const Text('Batal')),
-    FilledButton(onPressed:(){if(!form.currentState!.validate())return;Navigator.pop(d,{
-     if(editing)'id':p['id'],'barcode':barcode.text.trim(),'name':name.text.trim(),
-     'price':double.parse(price.text),'stock':int.parse(stock.text)});},child:Text(editing?'Simpan':'Tambah'))]));
-  barcode.dispose();name.dispose();price.dispose();stock.dispose();if(data==null)return;
-  await busy(()async{await callApi(editing?'PUT':'POST','/admin/products',data);
-   final x=await callApi('GET','/admin/products');if(mounted){setState(()=>products=(x['products'] as List?)??[]);
-   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(editing?'Barang diperbarui':'Barang ditambahkan')));}});
+    FilledButton(onPressed:(){if(!form.currentState!.validate())return;final out=<String,dynamic>{};for(final e in fields.entries){final k=e.key;final v=e.value.text.trim();out[k]=const {'cost_price','price','middle_price','middle_qty','member_price','unit2_qty','unit3_qty','sales_price','special_price','discount'}.contains(k)?(int.tryParse(v)??0):v;}Navigator.pop(d,out);},child:const Text('Simpan'))]));
+  final out=data;
+  for(final c in fields.values){c.dispose();}
+  if(out==null)return;
+  await busy(()async{await callApi(editing?'PUT':'POST','/admin/master-products',out);
+   final x=await callApi('GET','/admin/master-products?limit=500');if(mounted){setState(()=>masterProducts=(x['products'] as List?)??[]);
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Master barang tersimpan di server pusat')));}});
  }
 
  bool updatingAdmin = false;
@@ -309,7 +326,7 @@ Future<void> saveGoodsReceipt() async {
     title:Text('${x['branch_id']??'-'}'),subtitle:Text('${x['count']??0} transaksi'),trailing:Text(rupiah(x['total']))));})]
  ]));
  Widget productPage(){
-  final q=search.toLowerCase();final list=products.where((e){final x=e as Map<String,dynamic>;return '${x['name']??''}'.toLowerCase().contains(q)||'${x['barcode']??''}'.toLowerCase().contains(q);}).toList();
+  final q=search.toLowerCase();final list=masterProducts.where((e){final x=e as Map<String,dynamic>;return '${x['name']??''}'.toLowerCase().contains(q)||'${x['barcode']??''}'.toLowerCase().contains(q)||'${x['code']??''}'.toLowerCase().contains(q);}).toList();
   return Column(children:[
    Padding(padding:const EdgeInsets.fromLTRB(12,12,12,4),child:TextField(onChanged:(v)=>setState(()=>search=v),
     decoration:InputDecoration(prefixIcon:const Icon(Icons.search),hintText:'Cari nama barang / barcode',border:const OutlineInputBorder(),
@@ -317,9 +334,9 @@ Future<void> saveGoodsReceipt() async {
    Padding(padding:const EdgeInsets.symmetric(horizontal:12,vertical:6),child:Row(children:[
     Expanded(child:Text('${list.length} barang')),FilledButton.icon(onPressed:()=>editProduct(),icon:const Icon(Icons.add),label:const Text('Tambah'))])),
    if(loading)const LinearProgressIndicator(),if(error!=null)errorCard(),
-   Expanded(child:list.isEmpty?Center(child:Text(products.isEmpty?'Belum ada data barang.':'Barang tidak ditemukan.')):
+   Expanded(child:list.isEmpty?Center(child:Text(masterProducts.isEmpty?'Belum ada master barang di server.':'Barang tidak ditemukan.')):
     ListView.builder(itemCount:list.length,itemBuilder:(c,i){final x=list[i] as Map<String,dynamic>;return Card(child:ListTile(
-     title:Text('${x['name']??'-'}'),subtitle:Text('Barcode: ${x['barcode']??'-'}\\nStok: ${x['stock']??0}'),isThreeLine:true,
+     title:Text('${x['name']??'-'}'),subtitle:Text('Kode: ${x['code']??'-'} | Barcode: ${x['barcode']??'-'}\\nHarga: ${rupiah(x['price'])}'),isThreeLine:true,
      trailing:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(rupiah(x['price']),style:const TextStyle(fontWeight:FontWeight.bold)),const Text('EDIT',style:TextStyle(fontSize:11))]),
      onTap:()=>editProduct(x)));})),
   ]);
