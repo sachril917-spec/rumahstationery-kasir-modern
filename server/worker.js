@@ -17,6 +17,27 @@ export default {
 
     const url = new URL(request.url);
 
+// MASTER PRODUK TERPUSAT: tabel ini tidak menyimpan stok cabang.
+const masterFields = ["code","barcode","name","cost_price","price","middle_price","middle_qty","member_price","unit","unit2","unit2_qty","unit3","unit3_qty","sales_price","special_price","supplier_code","discount","category"];
+const masterNumeric = new Set(["cost_price","price","middle_price","middle_qty","member_price","unit2_qty","unit3_qty","sales_price","special_price","discount"]);
+async function ensureMasterProducts(db) {
+ await db.prepare(`CREATE TABLE IF NOT EXISTS master_products (code TEXT PRIMARY KEY, barcode TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', cost_price INTEGER NOT NULL DEFAULT 0, price INTEGER NOT NULL DEFAULT 0, middle_price INTEGER NOT NULL DEFAULT 0, middle_qty INTEGER NOT NULL DEFAULT 1, member_price INTEGER NOT NULL DEFAULT 0, unit TEXT NOT NULL DEFAULT 'PCS', unit2 TEXT NOT NULL DEFAULT '', unit2_qty INTEGER NOT NULL DEFAULT 1, unit3 TEXT NOT NULL DEFAULT '', unit3_qty INTEGER NOT NULL DEFAULT 1, sales_price INTEGER NOT NULL DEFAULT 0, special_price INTEGER NOT NULL DEFAULT 0, supplier_code TEXT NOT NULL DEFAULT '', discount INTEGER NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL)`).run();
+}
+async function masterRoute(request, env, url, json) {
+ const db=env.DB_RUMAH_STATIONERY; if(!db||!env.ADMIN_API_KEY)return json({success:false,message:"Database atau ADMIN_API_KEY belum tersedia."},503);
+ const admin=request.headers.get("Authorization")===`Bearer ${env.ADMIN_API_KEY}`; const app=!!env.API_KEY&&request.headers.get("Authorization")===`Bearer ${env.API_KEY}`;
+ if(url.pathname.startsWith("/admin/")&&!admin)return json({success:false,message:"Akses Admin ditolak."},401); if(url.pathname==="/catalog/products"&&!admin&&!app)return json({success:false,message:"API key tidak valid."},401);
+ try { await ensureMasterProducts(db);
+  if(request.method==="GET"){const limit=Math.min(500,Math.max(1,Number(url.searchParams.get("limit")||500))),offset=Math.max(0,Number(url.searchParams.get("offset")||0));const r=await db.prepare("SELECT "+masterFields.join(",")+",updated_at FROM master_products ORDER BY code LIMIT ? OFFSET ?").bind(limit,offset).all();const c=await db.prepare("SELECT COUNT(*) AS total FROM master_products").first();return json({success:true,products:r.results||[],total:Number(c?.total||0),limit,offset});}
+  if(request.method==="POST"&&url.pathname==="/admin/master-products/import"){const b=await request.json(),rows=b?.products;if(!Array.isArray(rows)||rows.length<1||rows.length>100)return json({success:false,message:"Kirim 1 sampai 100 barang per batch."},400);const now=new Date().toISOString(),stmts=[];for(const r of rows){const code=String(r?.code??"").trim(),name=String(r?.name??"").trim();if(!code||!name)return json({success:false,message:"Kode dan nama barang wajib ada."},400);const vals=masterFields.map(k=>masterNumeric.has(k)?(Number.isFinite(Number(r[k]??0))?Math.trunc(Number(r[k]??0)):0):String(r[k]??(k==="unit"?"PCS":"")));stmts.push(db.prepare(`INSERT INTO master_products (${masterFields.join(",")},updated_at) VALUES (${masterFields.map(()=>"?").join(",")},?) ON CONFLICT(code) DO UPDATE SET ${masterFields.filter(k=>k!=="code").map(k=>`${k}=excluded.${k}`).join(",")},updated_at=excluded.updated_at`).bind(...vals,now));}await db.batch(stmts);return json({success:true,imported:rows.length});}
+  if((request.method==="POST"||request.method==="PUT")&&url.pathname==="/admin/master-products"){const r=await request.json(),code=String(r?.code??"").trim(),name=String(r?.name??"").trim();if(!code||!name)return json({success:false,message:"Kode dan nama barang wajib diisi."},400);const now=new Date().toISOString(),vals=masterFields.map(k=>masterNumeric.has(k)?(Number.isFinite(Number(r[k]??0))?Math.trunc(Number(r[k]??0)):0):String(r[k]??(k==="unit"?"PCS":"")));await db.prepare(`INSERT INTO master_products (${masterFields.join(",")},updated_at) VALUES (${masterFields.map(()=>"?").join(",")},?) ON CONFLICT(code) DO UPDATE SET ${masterFields.filter(k=>k!=="code").map(k=>`${k}=excluded.${k}`).join(",")},updated_at=excluded.updated_at`).bind(...vals,now).run();return json({success:true,message:"Master barang tersimpan."});}
+  return json({success:false,message:"Metode tidak didukung."},405);
+ }catch(e){return json({success:false,message:"Gagal memproses master barang.",details:String(e?.message||e)},500);}
+}
+
+    if (url.pathname === "/catalog/products" || url.pathname === "/admin/master-products" || url.pathname === "/admin/master-products/import") return masterRoute(request, env, url, json);
+
+
 if (url.pathname === "/admin/goods-receipts" &&
     (request.method === "GET" || request.method === "POST")) {
   const db = env.DB_RUMAH_STATIONERY;
