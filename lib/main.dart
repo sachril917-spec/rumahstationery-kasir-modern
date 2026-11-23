@@ -539,6 +539,9 @@ class _HomeState extends State<Home> {
   Timer? _searchTimer;
 
   final search = TextEditingController();
+  final scanCode = TextEditingController();
+  final scanQty = TextEditingController(text: '1');
+  final FocusNode scanFocus = FocusNode();
 
 bool catalogMode = false;
 String selectedCategory = 'Semua';
@@ -636,13 +639,14 @@ int dailyExpenseTotal = 0;
     _clockTimer?.cancel();
     _searchTimer?.cancel();
     for (final controller in [
-      search, code, barcode, category, name, cost, price, middlePrice, qty, stock,
+      search, scanCode, scanQty, code, barcode, category, name, cost, price, middlePrice, qty, stock,
       cashier, branch, memberCode, memberName, phone, discount,
       level, txnDiscount, cash,
 expenseDescription, expenseAmount,
     ]) {
       controller.dispose();
     }
+    scanFocus.dispose();
     super.dispose();
   }
 
@@ -714,6 +718,46 @@ expenseDescription, expenseAmount,
         };
       }
     });
+  }
+
+  void processBarcodeScan(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return;
+    final matches = ps.where((p) =>
+      '${p['barcode']}'.trim() == value ||
+      '${p['code']}'.trim().toLowerCase() == value.toLowerCase()
+    ).toList();
+    if (matches.isEmpty) {
+      msg('Barcode/kode $value tidak ditemukan');
+      scanCode.clear();
+      scanFocus.requestFocus();
+      return;
+    }
+    final product = matches.first;
+    final requestedQty = int.tryParse(scanQty.text.trim()) ?? 1;
+    final count = requestedQty < 1 ? 1 : requestedQty;
+    final id = '${product['id']}';
+    final available = (product['stock'] as int?) ?? 0;
+    final current = (cart[id]?['qty'] as int?) ?? 0;
+    if (available > 0 && current + count > available) {
+      msg('Jumlah melebihi stok tersedia (${available} pcs)');
+    } else {
+      setState(() {
+        if (cart.containsKey(id)) {
+          cart[id]!['qty'] = current + count;
+        } else {
+          cart[id] = {
+            'id': id, 'name': product['name'],
+            'price': selectedMember == null
+              ? product['price'] as int : _memberUnitPrice(product),
+            'qty': count, 'discount': 0,
+          };
+        }
+        scanQty.text = '1';
+        scanCode.clear();
+      });
+    }
+    scanFocus.requestFocus();
   }
 
   Future<void> chooseMember() async {
@@ -1402,12 +1446,35 @@ Widget productPhoto(
     final compact = constraints.maxHeight < 650;
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        child: Row(children: [
+          Expanded(flex: 3, child: TextField(
+            controller: scanCode, focusNode: scanFocus,
+            textInputAction: TextInputAction.done,
+            onSubmitted: processBarcodeScan,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.qr_code_scanner),
+              labelText: 'Scan barcode / kode barang', hintText: 'Scan lalu Enter',
+              border: OutlineInputBorder(), isDense: true,
+            ),
+          )),
+          const SizedBox(width: 8),
+          SizedBox(width: 86, child: TextField(
+            controller: scanQty, keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(labelText: 'Qty scan',
+              border: OutlineInputBorder(), isDense: true),
+            onSubmitted: (_) => scanFocus.requestFocus(),
+          )),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
         child: TextField(
           controller: search, onChanged: searchChanged,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search), hintText: 'Cari nama atau kode barang',
-          ),
+          decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
+            hintText: 'Cari nama barang secara manual',
+            border: OutlineInputBorder(), isDense: true),
         ),
       ),
       Expanded(
@@ -1432,15 +1499,14 @@ return Card(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (Platform.isWindows)
-            productPhoto(item, height: 65),
+          productPhoto(item, height: 65),
           const SizedBox(height: 4),
-          Text(
-            '${item['name']}',
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+          InkWell(
+            onTap: () => showProductDetail(item),
+            child: Text('${item['name']}', textAlign: TextAlign.center,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700,
+                decoration: TextDecoration.underline)),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1498,10 +1564,23 @@ return Card(
                   trailing: Row(
   mainAxisSize: MainAxisSize.min,
   children: [
+                    IconButton(visualDensity: VisualDensity.compact,
+                      tooltip: 'Kurangi 1',
+                      onPressed: () => setState(() {
+                        final q = entry.value['qty'] as int;
+                        if (q <= 1) { cart.remove(entry.key); }
+                        else { entry.value['qty'] = q - 1; }
+                      }),
+                      icon: const Icon(Icons.remove_circle_outline, size: 19)),
+                    Text('${entry.value['qty']}'),
+                    IconButton(visualDensity: VisualDensity.compact,
+                      tooltip: 'Tambah 1',
+                      onPressed: () => setState(() => entry.value['qty'] = (entry.value['qty'] as int) + 1),
+                      icon: const Icon(Icons.add_circle_outline, size: 19)),
                     Text(money((entry.value['price'] as int) * (entry.value['qty'] as int))),
                     IconButton(visualDensity: VisualDensity.compact,
                       onPressed: () => setState(() => cart.remove(entry.key)),
-                      icon: const Icon(Icons.close, size: 19)),
+                      icon: const Icon(Icons.delete_outline, size: 19)),
                   ]),
                 )).toList(),
               ),
