@@ -1449,7 +1449,38 @@ Widget productPhoto(
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 7, 10, 3),
+          padding: const EdgeInsets.fromLTRB(10, 4, 10, 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: cashier,
+                  decoration: const InputDecoration(
+                    labelText: 'Kasir',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: branch,
+                  decoration: const InputDecoration(
+                    labelText: 'Cabang',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 4, 10, 3),
           child: Row(
             children: [
               Expanded(
@@ -1510,7 +1541,45 @@ Widget productPhoto(
 
         // Area utama kasir: daftar transaksi, bukan katalog foto.
         Expanded(
-          child: hasCart
+          child: search.text.trim().isNotEmpty
+              ? (ps.isEmpty
+                  ? const Center(child: Text('Barang tidak ditemukan'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(10, 5, 10, 8),
+                      itemCount: ps.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final item = ps[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          title: Text(
+                            '${item['name']}',
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text(
+                            'Kode: ${item['code'] ?? '-'}  •  Stok: ${item['stock'] ?? 0}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                money(item['price'] as int),
+                                style: const TextStyle(
+                                  color: Color(0xFF1769E0),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const Text('Tambah', style: TextStyle(fontSize: 11)),
+                            ],
+                          ),
+                          onTap: () => addProductToCart(item),
+                        );
+                      },
+                    ))
+              : hasCart
               ? Column(
                   children: [
                     Container(
@@ -1768,30 +1837,6 @@ Widget productPhoto(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: cashier,
-                      decoration: const InputDecoration(
-                        labelText: 'Nama kasir',
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: TextField(
-                      controller: branch,
-                      decoration: const InputDecoration(
-                        labelText: 'Cabang',
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 3),
               Row(
                 children: [
                   Expanded(
