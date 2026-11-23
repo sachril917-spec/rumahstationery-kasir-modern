@@ -1444,184 +1444,457 @@ Widget productPhoto(
 
   Widget cashierPage() => LayoutBuilder(builder: (context, constraints) {
     final compact = constraints.maxHeight < 650;
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-        child: Row(children: [
-          Expanded(flex: 3, child: TextField(
-            controller: scanCode, focusNode: scanFocus,
-            textInputAction: TextInputAction.done,
-            onSubmitted: processBarcodeScan,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.qr_code_scanner),
-              labelText: 'Scan barcode / kode barang', hintText: 'Scan lalu Enter',
-              border: OutlineInputBorder(), isDense: true,
-            ),
-          )),
-          const SizedBox(width: 8),
-          SizedBox(width: 86, child: TextField(
-            controller: scanQty, keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(labelText: 'Qty scan',
-              border: OutlineInputBorder(), isDense: true),
-            onSubmitted: (_) => scanFocus.requestFocus(),
-          )),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
-        child: TextField(
-          controller: search, onChanged: searchChanged,
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
-            hintText: 'Cari nama barang secara manual',
-            border: OutlineInputBorder(), isDense: true),
-        ),
-      ),
-      Expanded(
-        child: ps.isEmpty
-            ? const Center(child: Text('Barang belum tersedia. Tambahkan di menu Barang.'))
-            : GridView.builder(
-                padding: const EdgeInsets.all(10),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 190, mainAxisSpacing: 8, crossAxisSpacing: 8,
-                  childAspectRatio: 1.25,
-                ),
-                itemCount: ps.length,
-                itemBuilder: (context, index) {
-                  final item = ps[index];
-                  
-return Card(
-  clipBehavior: Clip.antiAlias,
-  child: InkWell(
-    onTap: () => addProductToCart(item),
-    child: Padding(
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          productPhoto(item, height: 65),
-          const SizedBox(height: 4),
-          InkWell(
-            onTap: () => showProductDetail(item),
-            child: Text('${item['name']}', textAlign: TextAlign.center,
-              maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700,
-                decoration: TextDecoration.underline)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            money(item['price'] as int),
-            style: const TextStyle(
-              color: Color(0xFF1769E0),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            'Stok ${item['stock']}',
-            style: const TextStyle(fontSize: 12),
-          ),
-          const Icon(Icons.add_circle_outline, size: 18),
-        ],
-      ),
-    ),
-  ),
-);
+    final hasCart = cart.isNotEmpty;
 
-                },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 7, 10, 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: scanCode,
+                  focusNode: scanFocus,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: processBarcodeScan,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.qr_code_scanner),
+                    labelText: 'Scan barcode / kode barang',
+                    hintText: 'Scan lalu Enter',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
               ),
-      ),
-      Container(
-        decoration: const BoxDecoration(
-          color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE1E5EC))),
+              const SizedBox(width: 7),
+              SizedBox(
+                width: 76,
+                child: TextField(
+                  controller: scanQty,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => scanFocus.requestFocus(),
+                  decoration: const InputDecoration(
+                    labelText: 'Qty',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        padding: EdgeInsets.fromLTRB(12, compact ? 5 : 8, 12, 8),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Expanded(child: TextField(controller: cashier,
-                decoration: const InputDecoration(labelText: 'Nama kasir', isDense: true))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: branch,
-                decoration: const InputDecoration(labelText: 'Cabang', isDense: true))),
-          ]),
-          const SizedBox(height: 5),
-          Row(children: [
-            Expanded(child: TextField(
-              controller: memberName, readOnly: true, onTap: chooseMember,
-              decoration: const InputDecoration(labelText: 'Member', isDense: true,
-                  prefixIcon: Icon(Icons.person)),
-            )),
-            IconButton(onPressed: chooseMember, tooltip: 'Pilih member', icon: const Icon(Icons.person_search)),
-          ]),
-          if (cart.isNotEmpty)
-            SizedBox(
-              height: compact ? 55 : 76,
-              child: ListView(
-                children: cart.entries.map((entry) => ListTile(
-                  dense: true, contentPadding: EdgeInsets.zero,
-                  title: Text('${entry.value['name']} × ${entry.value['qty']}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text('Harga ${money(entry.value['price'] as int)} • Diskon ${money(entry.value['discount'] as int)}'),
-                  trailing: Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-                    IconButton(visualDensity: VisualDensity.compact,
-                      tooltip: 'Kurangi 1',
-                      onPressed: () => setState(() {
-                        final q = entry.value['qty'] as int;
-                        if (q <= 1) { cart.remove(entry.key); }
-                        else { entry.value['qty'] = q - 1; }
-                      }),
-                      icon: const Icon(Icons.remove_circle_outline, size: 19)),
-                    Text('${entry.value['qty']}'),
-                    IconButton(visualDensity: VisualDensity.compact,
-                      tooltip: 'Tambah 1',
-                      onPressed: () => setState(() => entry.value['qty'] = (entry.value['qty'] as int) + 1),
-                      icon: const Icon(Icons.add_circle_outline, size: 19)),
-                    Text(money((entry.value['price'] as int) * (entry.value['qty'] as int))),
-                    IconButton(visualDensity: VisualDensity.compact,
-                      onPressed: () => setState(() => cart.remove(entry.key)),
-                      icon: const Icon(Icons.delete_outline, size: 19)),
-                  ]),
-                )).toList(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
+          child: TextField(
+            controller: search,
+            onChanged: searchChanged,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Cari nama / kode barang',
+              border: const OutlineInputBorder(),
+              isDense: true,
+              suffixIcon: search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        search.clear();
+                        refreshAll();
+                      },
+                    ),
+            ),
+          ),
+        ),
+
+        // Area utama kasir: daftar transaksi, bukan katalog foto.
+        Expanded(
+          child: hasCart
+              ? Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      color: const Color(0xFFEAF0FA),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'DAFTAR BARANG',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${cart.length} jenis • ${cart.values.fold<int>(0, (s, e) => s + (e['qty'] as int))} item',
+                            style: const TextStyle(
+                              color: Color(0xFF1769E0),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 5),
+                      color: Colors.grey.shade100,
+                      child: const Row(
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Text('NAMA BARANG',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text('QTY',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text('JUMLAH',
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                        itemCount: cart.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final entry = cart.entries.elementAt(index);
+                          final item = entry.value;
+                          final qtyValue = item['qty'] as int;
+                          final priceValue = item['price'] as int;
+                          final lineTotal = qtyValue * priceValue;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 9),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${item['name']}',
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: compact ? 16 : 18,
+                                          height: 1.15,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Harga ${money(priceValue)} / PCS',
+                                        style: TextStyle(
+                                          fontSize: compact ? 11 : 13,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '$qtyValue PCS',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          InkWell(
+                                            onTap: () => setState(() {
+                                              if (qtyValue <= 1) {
+                                                cart.remove(entry.key);
+                                              } else {
+                                                item['qty'] = qtyValue - 1;
+                                              }
+                                            }),
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(4),
+                                              child: Icon(
+                                                  Icons.remove_circle_outline,
+                                                  size: 22),
+                                            ),
+                                          ),
+                                          InkWell(
+                                            onTap: () => setState(() {
+                                              item['qty'] = qtyValue + 1;
+                                            }),
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(4),
+                                              child: Icon(
+                                                  Icons.add_circle_outline,
+                                                  size: 22),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        money(lineTotal),
+                                        textAlign: TextAlign.end,
+                                        style: TextStyle(
+                                          fontSize: compact ? 14 : 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF1769E0),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        visualDensity:
+                                            VisualDensity.compact,
+                                        tooltip: 'Hapus barang',
+                                        onPressed: () => setState(
+                                            () => cart.remove(entry.key)),
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.red,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                )
+              : ps.isEmpty
+                  ? const Center(
+                      child: Text(
+                          'Barang belum tersedia. Tambahkan di menu Barang.'))
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 190,
+                        mainAxisSpacing: 7,
+                        crossAxisSpacing: 7,
+                        childAspectRatio: 1.35,
+                      ),
+                      itemCount: ps.length,
+                      itemBuilder: (context, index) {
+                        final item = ps[index];
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => addProductToCart(item),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${item['name']}',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    money(item['price'] as int),
+                                    style: const TextStyle(
+                                      color: Color(0xFF1769E0),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text('Stok ${item['stock']}',
+                                      style: const TextStyle(fontSize: 11)),
+                                  const Icon(Icons.add_circle_outline,
+                                      size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+
+        // Informasi transaksi dan pembayaran tetap berada di bawah.
+        Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Color(0xFFE1E5EC))),
+          ),
+          padding: EdgeInsets.fromLTRB(10, compact ? 4 : 6, 10, 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: cashier,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama kasir',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: TextField(
+                      controller: branch,
+                      decoration: const InputDecoration(
+                        labelText: 'Cabang',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Subtotal'), Text(money(subtotal), style: const TextStyle(fontWeight: FontWeight.bold)),
-          ]),
-          Row(children: [
-            Expanded(child: TextField(
-              controller: txnDiscount, keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'Diskon transaksi (Rp)', isDense: true),
-            )),
-            const SizedBox(width: 8),
-            DropdownButton<String>(
-              value: method,
-              items: ['Tunai', 'Transfer', 'QRIS'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-              onChanged: (v) => setState(() { method = v ?? 'Tunai'; cash.clear(); }),
-            ),
-          ]),
-          if (method == 'Tunai')
-            TextField(controller: cash, keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'Uang diterima (Rp)', isDense: true)),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Kembalian: ${money(change)}', style: const TextStyle(fontSize: 12)),
-            Text('TOTAL ${money(total)}', style: const TextStyle(
-                fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1769E0))),
-          ]),
-          const SizedBox(height: 5),
-          SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: saving ? null : saveTransaction,
-            icon: saving
-                ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.check_circle),
-            label: Text(saving ? 'Menyimpan...' : 'BAYAR • ${money(total)}'),
-          )),
-        ]),
-      ),
-    ]);
+              const SizedBox(height: 3),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: memberName,
+                      readOnly: true,
+                      onTap: chooseMember,
+                      decoration: const InputDecoration(
+                        labelText: 'Member',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: chooseMember,
+                    tooltip: 'Pilih member',
+                    icon: const Icon(Icons.person_search),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Subtotal: ${money(subtotal)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600)),
+                  ),
+                  SizedBox(
+                    width: 112,
+                    child: TextField(
+                      controller: txnDiscount,
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Diskon (Rp)',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  DropdownButton<String>(
+                    value: method,
+                    items: ['Tunai', 'Transfer', 'QRIS']
+                        .map((v) => DropdownMenuItem(
+                            value: v, child: Text(v)))
+                        .toList(),
+                    onChanged: (v) => setState(() {
+                      method = v ?? 'Tunai';
+                      cash.clear();
+                    }),
+                  ),
+                ],
+              ),
+              if (method == 'Tunai')
+                TextField(
+                  controller: cash,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Uang diterima (Rp)',
+                    isDense: true,
+                  ),
+                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Kembalian: ${money(change)}',
+                      style: const TextStyle(fontSize: 12)),
+                  Text(
+                    'TOTAL ${money(total)}',
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1769E0),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: saving ? null : saveTransaction,
+                  icon: saving
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.check_circle),
+                  label: Text(
+                    saving ? 'Menyimpan...' : 'BAYAR • ${money(total)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   });
+
 Future<void> showProductDetail(Map<String, Object?> item) async {
   await showDialog<void>(
     context: context,
