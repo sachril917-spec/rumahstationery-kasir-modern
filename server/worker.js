@@ -3,7 +3,7 @@ export default {
   async fetch(request, env) {
     const cors = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Content-Type": "application/json; charset=utf-8"
     };
@@ -264,6 +264,55 @@ if (url.pathname === "/admin/products" &&
       }
     }
 
+
+// ADL CENTRAL MODULES: additive records, isolated from cashier stock/transactions.
+const centralModules = new Set([
+  "branches","purchases","suppliers","warehouse_receipts","warehouse_stock",
+  "transfers","branch_stock","prices","expenses","supplier_debts","users","activity_logs","reports"
+]);
+if (url.pathname.startsWith("/admin/central/") && ["GET","POST","PUT","DELETE"].includes(request.method)) {
+  const db = env.DB_RUMAH_STATIONERY;
+  if (!db || !env.ADMIN_API_KEY) return json({success:false,message:"Database atau ADMIN_API_KEY belum tersedia."},503);
+  if (request.headers.get("Authorization") !== `Bearer ${env.ADMIN_API_KEY}`) return json({success:false,message:"Akses Admin ditolak."},401);
+  const moduleName = url.pathname.split("/").filter(Boolean)[2] || "";
+  if (!centralModules.has(moduleName)) return json({success:false,message:"Modul tidak dikenal."},404);
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS adl_central_records (
+      id TEXT PRIMARY KEY, module TEXT NOT NULL, title TEXT NOT NULL,
+      code TEXT NOT NULL DEFAULT '', branch TEXT NOT NULL DEFAULT '',
+      quantity REAL NOT NULL DEFAULT 0, amount INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'AKTIF', payload TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )`).run();
+    await db.prepare("CREATE INDEX IF NOT EXISTS idx_adl_central_module_date ON adl_central_records(module,created_at)").run();
+    if (request.method === "GET") {
+      const q = (url.searchParams.get("q") || "").trim();
+      const rows = await db.prepare(`SELECT id,module,title,code,branch,quantity,amount,status,payload,created_at,updated_at
+        FROM adl_central_records WHERE module=? AND (?='' OR title LIKE '%'||?||'%' OR code LIKE '%'||?||'%' OR branch LIKE '%'||?||'%')
+        ORDER BY created_at DESC LIMIT 500`).bind(moduleName,q,q,q,q).all();
+      return json({success:true,records:(rows.results||[]).map(r=>({...r,data:JSON.parse(r.payload||'{}')}))});
+    }
+    if (request.method === "DELETE") {
+      const id=url.searchParams.get("id")||""; if(!id)return json({success:false,message:"ID wajib diisi."},400);
+      await db.prepare("DELETE FROM adl_central_records WHERE id=? AND module=?").bind(id,moduleName).run();
+      return json({success:true,message:"Data dihapus."});
+    }
+    let b; try { b=await request.json(); } catch { return json({success:false,message:"JSON tidak valid."},400); }
+    const title=String(b?.title||b?.name||b?.supplier_name||b?.purchase_number||'').trim();
+    if(!title)return json({success:false,message:"Nama/judul wajib diisi."},400);
+    const id=String(b?.id||crypto.randomUUID()), now=new Date().toISOString();
+    const code=String(b?.code||b?.number||''), branch=String(b?.branch||b?.branch_name||''), quantity=Number(b?.quantity||0), amount=Number(b?.amount||b?.total||0), status=String(b?.status||'AKTIF');
+    if(!Number.isFinite(quantity)||!Number.isFinite(amount))return json({success:false,message:"Jumlah atau nominal tidak valid."},400);
+    if(request.method==="POST") {
+      await db.prepare(`INSERT INTO adl_central_records(id,module,title,code,branch,quantity,amount,status,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
+       .bind(id,moduleName,title,code,branch,quantity,Math.round(amount),status,JSON.stringify(b),now,now).run();
+    } else {
+      await db.prepare(`UPDATE adl_central_records SET title=?,code=?,branch=?,quantity=?,amount=?,status=?,payload=?,updated_at=? WHERE id=? AND module=?`)
+       .bind(title,code,branch,quantity,Math.round(amount),status,JSON.stringify(b),now,id,moduleName).run();
+    }
+    return json({success:true,id,message:request.method==="POST"?"Data berhasil ditambahkan.":"Data berhasil diperbarui."},request.method==="POST"?201:200);
+  } catch(e) { return json({success:false,message:"Gagal memproses data modul.",details:String(e?.message||e)},500); }
+}
 
 // ENDPOINT ADMIN PUSAT ADL
 if (url.pathname.startsWith("/admin/") && request.method === "GET") {
