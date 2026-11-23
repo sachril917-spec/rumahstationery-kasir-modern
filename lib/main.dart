@@ -154,6 +154,10 @@ if (oldVersion < 6) {
         }
       },
     );
+    // Index pencarian dibuat tanpa mengubah atau menghapus data lama.
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)');
     await importExcelMasterIfNeeded();
   }
 
@@ -220,18 +224,21 @@ if (oldVersion < 6) {
     }
   }
 
-  Future<List<Map<String, Object?>>> products(String q) => q.trim().isEmpty
-    ? db.query('products', orderBy: 'name COLLATE NOCASE')
-    : db.query(
-        'products',
-        where: 'name LIKE ? OR code LIKE ? OR barcode LIKE ?',
-        whereArgs: [
-          '%${q.trim()}%',
-          '%${q.trim()}%',
-          '%${q.trim()}%',
-        ],
-        orderBy: 'name COLLATE NOCASE',
-      );
+  // Jangan pernah memuat belasan ribu barang sekaligus ke tampilan kasir.
+  // Saat kolom pencarian kosong, tampilkan 100 barang pertama saja.
+  Future<List<Map<String, Object?>>> products(String q) async {
+    final term = q.trim();
+    if (term.isEmpty) {
+      return db.query('products', orderBy: 'name COLLATE NOCASE', limit: 100);
+    }
+    return db.query(
+      'products',
+      where: 'code = ? OR barcode = ? OR code LIKE ? OR barcode LIKE ? OR name LIKE ?',
+      whereArgs: [term, term, '$term%', '$term%', '%$term%'],
+      orderBy: 'name COLLATE NOCASE',
+      limit: 100,
+    );
+  }
 
   Future<List<Map<String, Object?>>> members() =>
       db.query('members', orderBy: 'name COLLATE NOCASE');
@@ -698,7 +705,7 @@ int dailyExpenseTotal = 0;
   void initState() {
     super.initState();
     _now = DateTime.now();
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _clockTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
     refreshAll();
@@ -727,23 +734,33 @@ expenseDescription, expenseAmount,
     }
   }
 
+  Future<void> refreshProductsOnly() async {
+    final requestedQuery = search.text;
+    final products = await KasirDB.instance.products(requestedQuery);
+    if (!mounted || requestedQuery != search.text) return;
+    setState(() => ps = products);
+  }
+
   Future<void> refreshAll() async {
     final db = KasirDB.instance;
-    final products = await db.products(search.text);
-    final members = await db.members();
-    final transactions = await db.transactions();
-    if (!mounted) return;
+    final requestedQuery = search.text;
+    final results = await Future.wait([
+      db.products(requestedQuery),
+      db.members(),
+      db.transactions(),
+    ]);
+    if (!mounted || requestedQuery != search.text) return;
     setState(() {
-      ps = products;
-      ms = members;
-      txRows = transactions;
+      ps = results[0] as List<Map<String, Object?>>;
+      ms = results[1] as List<Map<String, Object?>>;
+      txRows = results[2] as List<Map<String, Object?>>;
       _repriceCart();
     });
   }
 
   void searchChanged(String _) {
     _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 250), refreshAll);
+    _searchTimer = Timer(const Duration(milliseconds: 300), refreshProductsOnly);
   }
 
   int _memberUnitPrice(Map<String, Object?> product) {
