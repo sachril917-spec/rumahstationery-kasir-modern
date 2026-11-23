@@ -392,6 +392,67 @@ if (oldVersion < 6) {
     });
   }
 
+  // Ambil master produk dari pusat. Stok cabang lokal sengaja tidak pernah diubah.
+  Future<int> syncMasterProducts(String key) async {
+    if (key.trim().isEmpty) return 0;
+    final rows = <Map>[];
+    var offset = 0;
+    var total = 0;
+    do {
+      final response = await http.get(
+        Uri.parse('$apiUrl/catalog/products?limit=500&offset=$offset'),
+        headers: {'Authorization': 'Bearer $key'},
+      ).timeout(const Duration(seconds: 30));
+      if (response.statusCode != 200) {
+        throw Exception('Gagal mengambil master barang: HTTP ${response.statusCode} ${response.body}');
+      }
+      final payload = jsonDecode(response.body);
+      if (payload is! Map || payload['success'] != true || payload['products'] is! List) {
+        throw Exception('Respons master barang dari server tidak valid.');
+      }
+      total = (payload['total'] as num?)?.toInt() ?? 0;
+      final page = (payload['products'] as List).cast<Map>();
+      rows.addAll(page);
+      offset += page.length;
+      if (page.isEmpty) break;
+    } while (offset < total);
+    var changed = 0;
+    await db.transaction((txn) async {
+      for (final raw in rows) {
+        final r = Map<String, dynamic>.from(raw);
+        final code = (r['code'] ?? '').toString().trim();
+        final name = (r['name'] ?? '').toString().trim();
+        if (code.isEmpty || name.isEmpty) continue;
+        final old = await txn.query('products', columns: ['id'], where: 'code = ?', whereArgs: [code], limit: 1);
+        final values = <String, Object?>{
+          'code': code, 'name': name,
+          'cost_price': r['cost_price'] ?? 0, 'price': r['price'] ?? 0,
+          'middle_price': r['middle_price'] ?? 0, 'middle_qty': r['middle_qty'] ?? 1,
+          'member_price': r['member_price'] ?? 0,
+          'barcode': r['barcode'] ?? '', 'category': r['category'] ?? '',
+          'unit': r['unit'] ?? 'PCS', 'unit2': r['unit2'] ?? '',
+          'unit2_qty': r['unit2_qty'] ?? 1, 'unit3': r['unit3'] ?? '',
+          'unit3_qty': r['unit3_qty'] ?? 1, 'sales_price': r['sales_price'] ?? 0,
+          'special_price': r['special_price'] ?? 0,
+          'supplier_code': r['supplier_code'] ?? '', 'discount': r['discount'] ?? 0,
+        };
+        if (old.isEmpty) {
+          values['id'] = uuid.v4();
+          values['stock'] = 0;
+          values['image_key'] = '';
+          values['barcode2'] = '';
+          values['barcode3'] = '';
+          values['member_prices'] = '{}';
+          await txn.insert('products', values);
+        } else {
+          await txn.update('products', values, where: 'id = ?', whereArgs: [old.first['id']]);
+        }
+        changed++;
+      }
+    });
+    return changed;
+  }
+
   Future<int> sync(String key) async {
     final rows = await db.query('transactions',
         where: "sync_status = 'pending'", orderBy: 'time ASC', limit: 100);
@@ -1293,6 +1354,7 @@ msg('Transaksi tersimpan offline');
   setState(() => syncing = true);
 
   try {
+    final masterCount = await KasirDB.instance.syncMasterProducts(apiKey);
     final salesCount = await KasirDB.instance.sync(apiKey);
     final expenseCount = await KasirDB.instance.syncExpenses(apiKey);
 
@@ -1300,8 +1362,8 @@ msg('Transaksi tersimpan offline');
     await refreshIncome();
 
     msg(
-      'Sinkronisasi berhasil: '
-      '$salesCount transaksi dan $expenseCount pengeluaran.',
+      'Master barang diperbarui: $masterCount; '
+      '$salesCount transaksi dan $expenseCount pengeluaran tersinkron.',
     );
   } catch (e) {
     msg('Sinkronisasi gagal: $e');
